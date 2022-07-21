@@ -91,7 +91,7 @@ func (tg *TGService) send() error {
 
 		r.Poll = append(r.Poll, storage.Poll{
 			MessageID: msg.MessageID,
-			ChaID:     id,
+			ChatID:    id,
 			PollID:    msg.Poll.ID,
 		})
 	}
@@ -140,7 +140,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 				tg.liveChats.Set(update.Message.Chat.ID)
 			}
 		case update.PollAnswer != nil:
-			r, err := tg.db.FindByPollID(update.PollAnswer.PollID)
+			r, err := tg.findByPollID(update.PollAnswer.PollID)
 			if err != nil {
 				logrus.Error(err)
 
@@ -162,7 +162,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 
 func (tg *TGService) stopPolls(poll []storage.Poll) {
 	for _, v := range poll {
-		p := tgbotapi.NewStopPoll(v.ChaID, v.MessageID)
+		p := tgbotapi.NewStopPoll(v.ChatID, v.MessageID)
 
 		_, err := tg.bot.Send(p)
 		if err != nil {
@@ -187,10 +187,34 @@ func NewTGService(ctx context.Context, db storage.Storage) (*TGService, error) {
 
 func chatPollExists(p []storage.Poll, id int64) bool {
 	for _, i := range p {
-		if i.ChaID == id {
+		if i.ChatID == id {
 			return true
 		}
 	}
 
 	return false
+}
+
+func (tg *TGService) findByPollID(id string) (record storage.Record, err error) {
+	ok := false
+	err = tg.db.Iterator(func(_ string, r storage.Record) {
+		for _, p := range r.Poll {
+			if p.PollID == id {
+				record = r
+				ok = true
+
+				return
+			}
+		}
+	})
+
+	if err != nil {
+		return record, err
+	}
+
+	if !ok {
+		return record, e.ErrNotFound
+	}
+
+	return record, nil
 }
