@@ -13,12 +13,17 @@ import (
 	"github.com/dimcz/tgpollbot/service"
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/dimcz/tgpollbot/storage/badger"
+	"github.com/dimcz/tgpollbot/storage/redis"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
 )
 
+var VERSION string
+
 func main() {
+	logrus.Info("Start TGPollBoot ", VERSION)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -29,6 +34,13 @@ func main() {
 
 	if len(config.Config.RedisDB) == 0 {
 		db, err = badger.Open("/tmp/database")
+		if err != nil {
+			logrus.Fatal(err)
+		}
+
+		defer db.Close()
+	} else {
+		db, err = redis.Connect(ctx)
 		if err != nil {
 			logrus.Fatal(err)
 		}
