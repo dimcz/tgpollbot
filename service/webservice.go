@@ -31,6 +31,7 @@ func (srv *WebService) Post(ctx echo.Context) error {
 		UpdatedAt: time.Now().Unix(),
 		Task:      task,
 	}
+
 	if err := srv.storage.Set(requestID, r); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
@@ -55,7 +56,7 @@ func (srv *WebService) Get(ctx echo.Context) error {
 		return e.HTTPError(e.NewInternal("unexpected status"))
 	}
 
-	return ctx.JSON(code, r)
+	return ctx.JSON(code, r.DTO())
 }
 
 func NewWebService(s storage.Storage) *WebService {
