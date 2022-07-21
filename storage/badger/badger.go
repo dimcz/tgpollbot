@@ -13,7 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const RecordTTL = 7 * 24 * 60 * 60
+var _ storage.Storage = &Client{}
 
 type Client struct {
 	db *badger.DB
@@ -37,7 +37,7 @@ func (cli *Client) Set(key string, r storage.Record) error {
 
 	entry := badger.NewEntry([]byte(key), buffer.Bytes()).
 		WithMeta(0).
-		WithTTL(time.Duration(RecordTTL * time.Second.Nanoseconds()))
+		WithTTL(time.Duration(storage.RecordTTL * time.Second.Nanoseconds()))
 	if err := wb.SetEntry(entry); err != nil {
 		return errors.Wrap(err, "failed to write data to cache")
 	}
@@ -108,30 +108,6 @@ func (cli *Client) Iterator(f func(k string, r storage.Record)) error {
 	})
 
 	return err
-}
-
-func (cli *Client) FindByPollID(id string) (record storage.Record, err error) {
-	ok := false
-	err = cli.Iterator(func(_ string, r storage.Record) {
-		for _, p := range r.Poll {
-			if p.PollID == id {
-				record = r
-				ok = true
-
-				return
-			}
-		}
-	})
-
-	if err != nil {
-		return record, err
-	}
-
-	if !ok {
-		return record, e.ErrNotFound
-	}
-
-	return record, nil
 }
 
 func Open(path string) (*Client, error) {
