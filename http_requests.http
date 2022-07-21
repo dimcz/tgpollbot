@@ -38,7 +38,7 @@ Content-Type: application/json
 X-Api-Key: 1234567890
 
 {
-  "message": "Poll 1",
+  "message": "Poll 4",
   "buttons": [
     "option 1",
     "option 2",
@@ -53,12 +53,12 @@ X-Api-Key: 1234567890
 %}
 
 ###
-GET http://localhost:8080/v1/d236ea0c-9273-4c6c-93af-b43305d4e339
+GET http://localhost:8080/v1/4c037184-280b-41d9-831c-4d739c4b780c
 Accept: application/json
 X-Api-Key: 1234567890
 
 > {%
   client.test("Request executed successfully", function() {
-    client.assert(response.status === 202, "Response status is not 202");
+    client.assert(response.status === 201, "Response status is not 201");
   });
 %}
