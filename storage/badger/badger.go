@@ -15,6 +15,8 @@ import (
 
 var _ storage.Storage = &Client{}
 
+const BadgerDBPath = "/tmp/data"
+
 type Client struct {
 	db *badger.DB
 }
@@ -111,16 +113,16 @@ func (cli *Client) Iterator(f func(k string, r storage.Record)) error {
 	return err
 }
 
-func Open(path string) (*Client, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err := os.MkdirAll(path, os.FileMode(0700)); err != nil {
+func Create() (*Client, error) {
+	if _, err := os.Stat(BadgerDBPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(BadgerDBPath, os.FileMode(0700)); err != nil {
 			return nil, errors.Wrap(err, "failed to create directory")
 		}
 	}
 
-	opts := badger.DefaultOptions(path).
-		WithDir(path).
-		WithValueDir(path).
+	opts := badger.DefaultOptions(BadgerDBPath).
+		WithDir(BadgerDBPath).
+		WithValueDir(BadgerDBPath).
 		WithSyncWrites(false).
 		WithValueThreshold(256).
 		WithCompactL0OnClose(true)
