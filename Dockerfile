@@ -1,10 +1,19 @@
-FROM golang:1.18 AS builder
-COPY . /src
-WORKDIR /src
+FROM golang:1.18-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod .
+RUN go mod download
+
+COPY . .
+
 RUN VERSION=`date -u +%Y-%m-%dT%H:%M:%SZ`
-RUN GOOS=linux GOARCH=amd64 go build -o /service -ldflags "-X main.version=$VERSION" ./main.go
+RUN CGO_ENABLED=0 go build -a -o /tgpollbot -ldflags "-X main.version=$VERSION"
 
-FROM alpine:latest
-COPY --from=builder /service /service
+FROM alpine
+WORKDIR /
+COPY --from=builder /tgpollbot /tgpollbot
 
-ENTRYPOINT ["/service"]
+EXPOSE 8080
+
+ENTRYPOINT ["/tgpollbot"]
