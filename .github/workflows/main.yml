@@ -6,11 +6,10 @@ on:
     branches: [ "master" ]
 
 jobs:
-
   build:
     strategy:
       runs-on: ubuntu-latest
-      steps:
+    steps:
       - uses: actions/checkout@v1
 
       - name: Install Go
