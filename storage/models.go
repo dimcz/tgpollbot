@@ -29,8 +29,8 @@ type Record struct {
 
 type RecordDTO struct {
 	Status string `json:"status"`
-	Option int    `json:"option,omitempty"`
-	Text   string `json:"text,omitempty"`
+	Option int    `json:"option"`
+	Text   string `json:"text"`
 }
 
 func (r *Record) DTO() RecordDTO {
