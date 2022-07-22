@@ -9,7 +9,7 @@
 ---
 Для запуска необходимы следующие переменные окружения:
 - X_API_KEY - ключ авторизации HTTP запросов
-- USERS - список пользователй Telegram, разделенных запятой
+- USERS - список ID пользователей Telegram, разделенных запятой
 - TOKEN - ключ авторизации бота в системе Telegram
 - REDIS_DB - подключение к Redis серверу вида redisdb://username:password@localhost:port/db
 
@@ -26,7 +26,7 @@ services:
       - 8080:8080
     environment:
       - X_API_KEY=1234567890
-      - USERS=Username
+      - USERS=123456789,225544522
       - TOKEN=XXXXXXXXXX:YYYYYYYYYYYYYYYYYYYYY
  ```
 _Примечание: в случае, если не указана переменная REDIS_DB, в качестве DB очереди используется собственная
@@ -85,6 +85,10 @@ _Варианты ответов:_
 Для работы с ботом, необходимо первоначально создать чат с ним:
 
 ![начало работы с ботом](https://github.com/dimcz/tgpollbot/blob/main/docs/start.jpg)
+
+Если пользователь "не известен" боту, то в ответ будет послано сообщение приветствие с ID пользователя
+
+![UserID](https://github.com/dimcz/tgpollbot/blob/main/docs/userid.jpg)
 
 После регистрации нового опроса в системе пользователь телеграма получит 
 

@@ -33,7 +33,7 @@ func main() {
 	)
 
 	if len(config.Config.RedisDB) == 0 {
-		db, err = badger.Open("/data")
+		db, err = badger.Open("/tmp/data")
 		if err != nil {
 			logrus.Fatal(err)
 		}

@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +23,8 @@ type TGService struct {
 	ctx context.Context
 	db  storage.Storage
 	bot *tgbotapi.BotAPI
+
+	allowList []int64
 
 	liveChats *utils.Set[int64]
 }
@@ -136,9 +140,11 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 	for update := range ch {
 		switch {
 		case update.Message != nil:
-			u := strings.Split(config.Config.Users, ",")
-			if slices.Contains(u, update.Message.From.UserName) {
+			if slices.Contains(tg.allowList, update.Message.From.ID) {
 				tg.liveChats.Set(update.Message.Chat.ID)
+				tg.helloAgain(update.Message.Chat.ID, update.Message.From.FirstName)
+			} else {
+				tg.helloNewUser(update.Message.Chat.ID, update.Message.From.FirstName, update.Message.From.ID)
 			}
 		case update.PollAnswer != nil:
 			r, err := tg.findByPollID(update.PollAnswer.PollID)
@@ -178,11 +184,23 @@ func NewTGService(ctx context.Context, db storage.Storage) (*TGService, error) {
 		return nil, err
 	}
 
+	u := strings.Split(config.Config.Users, ",")
+	var allowList []int64
+	for _, v := range u {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			continue
+		}
+
+		allowList = append(allowList, id)
+	}
+
 	return &TGService{
 		ctx:       ctx,
 		db:        db,
 		bot:       bot,
 		liveChats: utils.SetInt64(),
+		allowList: allowList,
 	}, nil
 }
 
@@ -218,4 +236,18 @@ func (tg *TGService) findByPollID(id string) (record storage.Record, err error) 
 	}
 
 	return record, nil
+}
+
+func (tg *TGService) helloAgain(id int64, n string) {
+	message := tgbotapi.NewMessage(id, fmt.Sprintf("Hello, %s!", n))
+	if _, err := tg.bot.Send(message); err != nil {
+		logrus.Error(err)
+	}
+}
+
+func (tg *TGService) helloNewUser(id int64, n string, userId int64) {
+	message := tgbotapi.NewMessage(id, fmt.Sprintf("Hello, %s! Your UserID: %d", n, userId))
+	if _, err := tg.bot.Send(message); err != nil {
+		logrus.Error(err)
+	}
 }
