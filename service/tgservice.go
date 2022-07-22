@@ -10,7 +10,7 @@ import (
 
 	"github.com/dimcz/tgpollbot/config"
 	"github.com/dimcz/tgpollbot/lib/e"
-	"github.com/dimcz/tgpollbot/lib/utils"
+	"github.com/dimcz/tgpollbot/lib/set"
 	"github.com/dimcz/tgpollbot/storage"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
@@ -26,7 +26,7 @@ type TGService struct {
 
 	allowList []int64
 
-	liveChats *utils.Set[int64]
+	liveChats *set.Set[int64]
 }
 
 func (tg *TGService) Close() {
@@ -237,7 +237,7 @@ func NewTGService(ctx context.Context, db storage.Storage) (*TGService, error) {
 		ctx:       ctx,
 		db:        db,
 		bot:       bot,
-		liveChats: utils.SetInt64(),
+		liveChats: set.Int64Set(),
 		allowList: allowList,
 	}, nil
 }

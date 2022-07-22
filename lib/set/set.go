@@ -1,4 +1,4 @@
-package utils
+package set
 
 import (
 	"sync"
@@ -47,7 +47,7 @@ func (s *Set[T]) UnSet(v T) {
 	s.set = result
 }
 
-func SetInt64() *Set[int64] {
+func Int64Set() *Set[int64] {
 	return &Set[int64]{
 		mu: new(sync.Mutex),
 	}
