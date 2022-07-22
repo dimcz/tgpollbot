@@ -33,7 +33,7 @@ func (srv *WebService) Post(ctx echo.Context) error {
 		Task:      task,
 	}
 
-	if err := srv.storage.Set(requestID, r); err != nil {
+	if err := srv.storage.Set(r); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 

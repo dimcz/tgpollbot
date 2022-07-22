@@ -20,13 +20,13 @@ type Client struct {
 	db  *redis.Client
 }
 
-func (cli *Client) Set(key string, r storage.Record) error {
+func (cli *Client) Set(r storage.Record) error {
 	data, err := json.Marshal(r)
 	if err != nil {
 		return err
 	}
 
-	return cli.db.Set(cli.ctx, key, data, storage.RecordTTL*time.Second).Err()
+	return cli.db.Set(cli.ctx, r.ID, data, storage.RecordTTL*time.Second).Err()
 }
 
 func (cli *Client) Get(key string) (r storage.Record, err error) {

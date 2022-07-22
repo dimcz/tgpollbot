@@ -24,9 +24,9 @@ type Client struct {
 	db     *mongo.Database
 }
 
-func (cli *Client) Set(key string, r storage.Record) (err error) {
+func (cli *Client) Set(r storage.Record) (err error) {
 	_, err = cli.db.Collection(RecordsCollection).
-		ReplaceOne(cli.ctx, bson.M{"id": key}, r)
+		ReplaceOne(cli.ctx, bson.M{"id": r.ID}, r)
 
 	return
 }

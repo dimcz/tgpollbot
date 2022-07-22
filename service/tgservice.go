@@ -101,7 +101,7 @@ func (tg *TGService) send() error {
 	}
 
 	r.UpdatedAt = time.Now().Unix()
-	if err := tg.db.Set(r.ID, r); err != nil {
+	if err := tg.db.Set(r); err != nil {
 		return err
 	}
 
@@ -158,7 +158,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 			r.Option = update.PollAnswer.OptionIDs[0]
 			r.Text = r.Task.Buttons[r.Option]
 
-			if err := tg.db.Set(r.ID, r); err != nil {
+			if err := tg.db.Set(r); err != nil {
 				logrus.Error(err)
 			}
 

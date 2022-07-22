@@ -27,7 +27,7 @@ func (cli *Client) Close() {
 	}
 }
 
-func (cli *Client) Set(key string, r storage.Record) error {
+func (cli *Client) Set(r storage.Record) error {
 	var buffer bytes.Buffer
 
 	if err := gob.NewEncoder(&buffer).Encode(r); err != nil {
@@ -37,7 +37,7 @@ func (cli *Client) Set(key string, r storage.Record) error {
 	wb := cli.db.NewWriteBatch()
 	defer wb.Cancel()
 
-	entry := badger.NewEntry([]byte(key), buffer.Bytes()).
+	entry := badger.NewEntry([]byte(r.ID), buffer.Bytes()).
 		WithMeta(0).
 		WithTTL(time.Duration(storage.RecordTTL * time.Second.Nanoseconds()))
 	if err := wb.SetEntry(entry); err != nil {
