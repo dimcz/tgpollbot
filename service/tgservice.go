@@ -178,42 +178,6 @@ func (tg *TGService) stopPolls(poll []storage.Poll) {
 	}
 }
 
-func NewTGService(ctx context.Context, db storage.Storage) (*TGService, error) {
-	bot, err := tgbotapi.NewBotAPI(config.Config.Token)
-	if err != nil {
-		return nil, err
-	}
-
-	u := strings.Split(config.Config.Users, ",")
-	var allowList []int64
-	for _, v := range u {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			continue
-		}
-
-		allowList = append(allowList, id)
-	}
-
-	return &TGService{
-		ctx:       ctx,
-		db:        db,
-		bot:       bot,
-		liveChats: utils.SetInt64(),
-		allowList: allowList,
-	}, nil
-}
-
-func chatPollExists(p []storage.Poll, id int64) bool {
-	for _, i := range p {
-		if i.ChatID == id {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (tg *TGService) findByPollID(id string) (record storage.Record, err error) {
 	ok := false
 	err = tg.db.Iterator(func(_ string, r storage.Record) {
@@ -250,4 +214,40 @@ func (tg *TGService) helloNewUser(id int64, n string, userId int64) {
 	if _, err := tg.bot.Send(message); err != nil {
 		logrus.Error(err)
 	}
+}
+
+func NewTGService(ctx context.Context, db storage.Storage) (*TGService, error) {
+	bot, err := tgbotapi.NewBotAPI(config.Config.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	u := strings.Split(config.Config.Users, ",")
+	var allowList []int64
+	for _, v := range u {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			continue
+		}
+
+		allowList = append(allowList, id)
+	}
+
+	return &TGService{
+		ctx:       ctx,
+		db:        db,
+		bot:       bot,
+		liveChats: utils.SetInt64(),
+		allowList: allowList,
+	}, nil
+}
+
+func chatPollExists(p []storage.Poll, id int64) bool {
+	for _, i := range p {
+		if i.ChatID == id {
+			return true
+		}
+	}
+
+	return false
 }

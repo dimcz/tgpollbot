@@ -11,20 +11,20 @@ type Task struct {
 }
 
 type Poll struct {
-	MessageID int    `json:"message_id"`
-	ChatID    int64  `json:"chat_id"`
-	PollID    string `json:"poll_id"`
+	MessageID int    `json:"message_id" bson:"message_id"`
+	ChatID    int64  `json:"chat_id" bson:"chat_id"`
+	PollID    string `json:"poll_id" bson:"poll_id"`
 }
 
 type Record struct {
-	Status    string `json:"status"`
-	UpdatedAt int64  `json:"updated_at"`
-	Option    int    `json:"option,omitempty"`
-	Text      string `json:"text,omitempty"`
+	Status    string `json:"status" bson:"status"`
+	UpdatedAt int64  `json:"updated_at" bson:"updated_at"`
+	Option    int    `json:"option" bson:"option"`
+	Text      string `json:"text" bson:"text"`
 
-	ID   string `json:"id"`
-	Task Task   `json:"task"`
-	Poll []Poll `json:"poll"`
+	ID   string `json:"id" bson:"id"`
+	Task Task   `json:"task" bson:"task"`
+	Poll []Poll `json:"poll" bson:"poll"`
 }
 
 type RecordDTO struct {
@@ -40,3 +40,5 @@ func (r *Record) DTO() RecordDTO {
 		Text:   r.Text,
 	}
 }
+
+type Opts map[string]interface{}

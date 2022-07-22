@@ -13,6 +13,7 @@ import (
 	"github.com/dimcz/tgpollbot/service"
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/dimcz/tgpollbot/storage/badger"
+	"github.com/dimcz/tgpollbot/storage/mongo"
 	"github.com/dimcz/tgpollbot/storage/redis"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -32,21 +33,20 @@ func main() {
 		err error
 	)
 
-	if len(config.Config.RedisDB) == 0 {
-		db, err = badger.Open("/tmp/data")
-		if err != nil {
-			logrus.Fatal(err)
-		}
-
-		defer db.Close()
-	} else {
-		db, err = redis.Connect(ctx)
-		if err != nil {
-			logrus.Fatal(err)
-		}
-
-		defer db.Close()
+	switch {
+	case len(config.Config.RedisDB) > 0:
+		db, err = redis.Connect(ctx, config.Config.RedisDB)
+	case len(config.Config.MongoDB) > 0:
+		db, err = mongo.Connect(ctx, config.Config.MongoDB)
+	default:
+		db, err = badger.Create()
 	}
+
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	defer db.Close()
 
 	tg, err := service.NewTGService(ctx, db)
 	if err != nil {

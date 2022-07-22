@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dimcz/tgpollbot/config"
 	"github.com/dimcz/tgpollbot/lib/e"
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/go-redis/redis/v8"
@@ -86,8 +85,8 @@ func (cli *Client) Close() {
 	}
 }
 
-func Connect(ctx context.Context) (*Client, error) {
-	u, err := url.Parse(config.Config.RedisDB)
+func Connect(ctx context.Context, conn string) (*Client, error) {
+	u, err := url.Parse(conn)
 	if err != nil {
 		return nil, err
 	}
