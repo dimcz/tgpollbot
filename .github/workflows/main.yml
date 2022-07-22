@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Build and push image to the Docker Hub
-        uses: uses: elgohr/Publish-Docker-Github-Action@master
+        uses: elgohr/Publish-Docker-Github-Action@master
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
