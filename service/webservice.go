@@ -20,6 +20,7 @@ func (srv *WebService) Post(ctx echo.Context) error {
 	if err := ctx.Bind(&task); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, errors.Wrap(err, "could not decode user data"))
 	}
+
 	if err := ctx.Validate(&task); err != nil {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, err)
 	}
@@ -42,11 +43,13 @@ func (srv *WebService) Post(ctx echo.Context) error {
 func (srv *WebService) Get(ctx echo.Context) error {
 	id := ctx.Param("id")
 	r, err := srv.storage.Get(id)
+
 	if err != nil {
 		return e.HTTPError(err)
 	}
 
 	var code int
+
 	switch r.Status {
 	case storage.DONE:
 		code = http.StatusOK

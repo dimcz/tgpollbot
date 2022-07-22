@@ -37,6 +37,7 @@ func (s *Set[T]) UnSet(v T) {
 	defer s.mu.Unlock()
 
 	var result []T
+
 	for _, i := range s.set {
 		if i != v {
 			result = append(result, i)

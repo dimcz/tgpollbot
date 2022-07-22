@@ -20,6 +20,8 @@ func (val *Validator) Validate(i interface{}) error {
 	if err == nil {
 		return nil
 	}
+
 	err = errors.New(strings.ReplaceAll(err.Error(), "\n", ", "))
+
 	return err
 }

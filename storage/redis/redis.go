@@ -45,10 +45,13 @@ func (cli *Client) Get(key string) (r storage.Record, err error) {
 
 func (cli *Client) Iterator(f func(k string, r storage.Record)) error {
 	var keys []string
+
 	iter := cli.db.Scan(cli.ctx, 0, "*", 0).Iterator()
+
 	for iter.Next(cli.ctx) {
 		keys = append(keys, iter.Val())
 	}
+
 	if err := iter.Err(); err != nil {
 		return err
 	}
@@ -63,12 +66,15 @@ func (cli *Client) Iterator(f func(k string, r storage.Record)) error {
 	}
 
 	for _, d := range data {
-		var r storage.Record
-		if err := json.Unmarshal([]byte(d.(string)), &r); err != nil {
-			continue
-		}
+		if v, ok := d.(string); ok {
+			var r storage.Record
 
-		f(r.ID, r)
+			if err := json.Unmarshal([]byte(v), &r); err != nil {
+				continue
+			}
+
+			f(r.ID, r)
+		}
 	}
 
 	return nil

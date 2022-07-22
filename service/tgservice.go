@@ -111,6 +111,7 @@ func (tg *TGService) getReadyRecord() (r storage.Record, err error) {
 			records[k] = r
 		}
 	})
+
 	if err != nil {
 		return r, err
 	}

@@ -51,6 +51,7 @@ func (cli *Client) Set(key string, r storage.Record) error {
 
 func (cli *Client) Get(key string) (r storage.Record, err error) {
 	var buffer []byte
+
 	err = cli.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
 		if err != nil {

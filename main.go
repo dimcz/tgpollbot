@@ -83,6 +83,7 @@ func run(srv *service.WebService) error {
 	e.POST("/v1/", srv.Post)
 
 	conn := fmt.Sprintf(":%d", config.Config.Port)
+
 	go func() {
 		if err := e.Start(conn); err != nil && err != http.ErrServerClosed {
 			e.Logger.Fatal("shutting down the server")
@@ -92,7 +93,9 @@ func run(srv *service.WebService) error {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
 	<-quit
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
 	defer cancel()
 
 	return e.Shutdown(ctx)
