@@ -15,11 +15,10 @@ import (
 const RecordTTL = 7 * 24 * 60 * 60
 
 const (
-	RecordsList       = "records"
-	SessionSet        = "session"
-	PollPrefix        = "poll:"
-	PollRequestPrefix = "request:"
-	RecordPrefix      = "record:"
+	PollRequestsSet = "pollRequestsSet"
+	RecordsList     = "requestsList"
+	RecordPrefix    = "record:"
+	SessionSet      = "sessionSet"
 )
 
 type Client struct {
@@ -33,11 +32,11 @@ type Client struct {
 
 // Records
 
-func (cli *Client) Insert(r Record) error {
+func (cli *Client) RPush(list string, r Request) error {
 	defer cli.mu.Unlock()
 	cli.mu.Lock()
 
-	if err := cli.db.RPush(cli.ctx, RecordsList, r).Err(); err != nil {
+	if err := cli.db.RPush(cli.ctx, list, r).Err(); err != nil {
 		return err
 	}
 
@@ -46,22 +45,23 @@ func (cli *Client) Insert(r Record) error {
 	return nil
 }
 
-func (cli *Client) Next() (r Record, err error) {
+func (cli *Client) Next() (r Request, err error) {
 	defer cli.mu.Unlock()
 	cli.mu.Lock()
 
 	if cli.len == 0 {
-		return r, e.ErrNotFound
+		err = e.ErrNotFound
+
+		return
 	}
 
 	err = cli.db.LIndex(cli.ctx, RecordsList, cli.index).Scan(&r)
 	if err != nil {
 		if err == redis.Nil {
-			return r, e.ErrNotFound
+			err = e.ErrNotFound
 		}
 
-		logrus.Error(err)
-		return r, err
+		return
 	}
 
 	cli.index += 1
@@ -72,11 +72,15 @@ func (cli *Client) Next() (r Record, err error) {
 	return
 }
 
-func (cli *Client) Drop(r Record) error {
+func (cli *Client) LRange(list string, results interface{}) error {
+	return cli.db.LRange(cli.ctx, list, 0, -1).ScanSlice(results)
+}
+
+func (cli *Client) LRem(list string, member interface{}) error {
 	defer cli.mu.Unlock()
 	cli.mu.Lock()
 
-	if err := cli.db.LRem(cli.ctx, RecordsList, 1, r).Err(); err != nil {
+	if err := cli.db.LRem(cli.ctx, list, 1, member).Err(); err != nil {
 		return err
 	}
 
@@ -88,31 +92,61 @@ func (cli *Client) Drop(r Record) error {
 	return nil
 }
 
-// Chats
-
-func (cli *Client) AddChat(chatId int64) error {
-	return cli.db.SAdd(cli.ctx, SessionSet, chatId).Err()
+func (cli *Client) SRem(set string, members ...interface{}) error {
+	return cli.db.SRem(cli.ctx, set, members...).Err()
 }
 
-func (cli *Client) DropChat(chatId int64) error {
-	return cli.db.SRem(cli.ctx, SessionSet, chatId).Err()
+func (cli *Client) SMembers(set string, result []interface{}) error {
+	return cli.db.SMembers(cli.ctx, set).ScanSlice(&result)
 }
 
-func (cli *Client) GetChats() (result []int64, err error) {
-	err = cli.db.SMembers(cli.ctx, SessionSet).ScanSlice(&result)
+func (cli *Client) Sessions() (result []int64, err error) {
+	if err = cli.db.SMembers(cli.ctx, SessionSet).ScanSlice(&result); err != nil {
+		return
+	}
+
+	if len(result) == 0 {
+		err = e.ErrNotFound
+	}
 
 	return
 }
 
-// Misc
+func (cli *Client) SSearch(set, pattern string) (result []string, err error) {
+	var cursor uint64 = 0
+	for {
+		var keys []string
+		keys, cursor, err = cli.db.SScan(cli.ctx, set, cursor, pattern, 0).Result()
+		if err != nil {
+			return result, err
+		}
 
-func (cli *Client) Exists(key string) bool {
-	r, err := cli.db.Exists(cli.ctx, key).Result()
-	if err == nil && r == 1 {
-		return true
+		result = append(result, keys...)
+
+		if cursor == 0 {
+			break
+		}
 	}
 
-	return false
+	return
+}
+
+func (cli *Client) SDelete(set, pattern string) error {
+	keys, err := cli.SSearch(set, pattern)
+	if err != nil {
+		return err
+	}
+
+	members := make([]interface{}, 0, len(keys))
+	for _, v := range keys {
+		members = append(members, v)
+	}
+
+	return cli.SRem(set, members...)
+}
+
+func (cli *Client) SAdd(set string, member interface{}) error {
+	return cli.db.SAdd(cli.ctx, set, member).Err()
 }
 
 func (cli *Client) Set(key string, val interface{}) error {

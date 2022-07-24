@@ -67,13 +67,13 @@ func (tg *TGService) sendService() {
 }
 
 func (tg *TGService) send() error {
-	chats, err := tg.cli.GetChats()
+	sessions, err := tg.cli.Sessions()
 	if err != nil {
-		return err
-	}
+		if err == e.ErrNotFound {
+			return nil
+		}
 
-	if len(chats) == 0 {
-		return nil
+		return err
 	}
 
 	r, err := tg.cli.Next()
@@ -85,8 +85,10 @@ func (tg *TGService) send() error {
 		return err
 	}
 
-	for _, chatId := range chats {
-		if tg.cli.Exists(fmt.Sprintf("%s%s:%d", storage.PollRequestPrefix, r.ID, chatId)) {
+	for _, chatId := range sessions {
+		k, _ := tg.cli.SSearch(storage.PollRequestsSet,
+			fmt.Sprintf("%s:%d:*", r.ID, chatId))
+		if len(k) > 0 {
 			continue
 		}
 
@@ -98,18 +100,13 @@ func (tg *TGService) send() error {
 		if err != nil {
 			logrus.Error(err)
 
-			if err := tg.cli.DropChat(chatId); err != nil {
+			if err := tg.cli.SRem(storage.SessionSet, chatId); err != nil {
 				logrus.Error(err)
 			}
 		}
 
-		err = tg.cli.Set(fmt.Sprintf("%s%s:%d",
-			storage.PollRequestPrefix, r.ID, chatId), msg.Poll.ID)
-		if err != nil {
-			logrus.Error(err)
-		}
-
-		err = tg.cli.Set(storage.PollPrefix+msg.Poll.ID, r)
+		err = tg.cli.SAdd(storage.PollRequestsSet,
+			fmt.Sprintf("%s:%d:%s", r.ID, chatId, msg.Poll.ID))
 		if err != nil {
 			logrus.Error(err)
 		}
@@ -124,7 +121,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 		case update.Message != nil:
 			switch {
 			case slices.Contains(tg.allowList, update.Message.From.ID):
-				err := tg.cli.AddChat(update.Message.Chat.ID)
+				err := tg.cli.SAdd(storage.SessionSet, update.Message.Chat.ID)
 				if err != nil {
 					logrus.Error(err)
 				}
@@ -135,26 +132,53 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 			}
 
 		case update.PollAnswer != nil:
-			r := storage.Record{}
-			if err := tg.cli.Get(storage.PollPrefix+update.PollAnswer.PollID, &r); err != nil {
-				logrus.Error(err)
+			keys, err := tg.cli.SSearch(storage.PollRequestsSet, "*:*:"+update.PollAnswer.PollID)
+			if err != nil {
+				if err != e.ErrNotFound {
+					logrus.Error(err)
+				}
 
 				continue
 			}
+			array := strings.Split(keys[0], ":")
+			reqId := array[0]
 
-			if err := tg.cli.Drop(r); err != nil {
+			text, err := tg.deleteRequest(reqId, update.PollAnswer.OptionIDs[0])
+			if err != nil {
 				logrus.Error(err)
 			}
 
-			r.Status = storage.RecordPollDone
-			r.Option = &update.PollAnswer.OptionIDs[0]
-			r.Text = r.Task.Buttons[*r.Option]
+			dto := storage.DTO{
+				Status: storage.RecordPollDone,
+				Text:   text,
+				Option: &update.PollAnswer.OptionIDs[0],
+			}
 
-			if err := tg.cli.Set(storage.RecordPrefix+r.ID, r); err != nil {
+			if err := tg.cli.Set(storage.RecordPrefix+reqId, dto); err != nil {
+				logrus.Error(err)
+			}
+
+			if err := tg.cli.SDelete(storage.PollRequestsSet, reqId+":*"); err != nil {
 				logrus.Error(err)
 			}
 		}
 	}
+}
+
+func (tg *TGService) deleteRequest(reqId string, index int) (text string, err error) {
+	var requests []storage.Request
+
+	if err = tg.cli.LRange(storage.RecordsList, &requests); err != nil {
+		return
+	}
+
+	for _, v := range requests {
+		if v.ID == reqId {
+			return v.Buttons[index], tg.cli.LRem(storage.RecordsList, v)
+		}
+	}
+
+	return "", e.ErrNotFound
 }
 
 func NewTGService(ctx context.Context, cli *storage.Client) (*TGService, error) {

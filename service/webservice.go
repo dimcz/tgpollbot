@@ -26,17 +26,17 @@ func (srv *WebService) Post(ctx echo.Context) error {
 	}
 
 	id := uuid.New().String()
-	r := storage.Record{
+	r := storage.Request{
 		ID:   id,
 		Task: task,
 	}
 
-	if err := srv.cli.Insert(r); err != nil {
+	if err := srv.cli.RPush(storage.RecordsList, r); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
 	err := srv.cli.Set(storage.RecordPrefix+id,
-		storage.Record{
+		storage.DTO{
 			Status: storage.RecordProcessing,
 			Option: nil,
 		})
@@ -52,9 +52,9 @@ func (srv *WebService) Post(ctx echo.Context) error {
 func (srv *WebService) Get(ctx echo.Context) error {
 	id := ctx.Param("request_id")
 
-	r := storage.Record{}
-	if err := srv.cli.Get(storage.RecordPrefix+id, &r); err == nil {
-		return ctx.JSON(http.StatusOK, r.DTO())
+	dto := storage.DTO{}
+	if err := srv.cli.Get(storage.RecordPrefix+id, &dto); err == nil {
+		return ctx.JSON(http.StatusOK, dto)
 	}
 
 	return echo.NewHTTPError(http.StatusNotFound, "request not found")
