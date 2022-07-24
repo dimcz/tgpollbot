@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tgpollbot
+  name: tgpollbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tgpollbot
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: tgpollbot
+    spec:
+      containers:
+      - image: skydim/tgpollbot
+        name: tgpollbot
+        ports:
+          - containerPort: 8080
+        env:
+          - name: REDIS_DB
+            value: redisdb://192.168.1.1.3:6379/0
+          - name: TOKEN
+            value: xxxxxxxxxx:yyyyyyyyyyyyyyyyyyyyyyyyyyyy
+          - name: USERS
+            value: "2222222"
+          - name: X_API_KEY
+            value: "1234567890"
+        resources: {}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: tgpollbot
+  labels:
+    project: tgpollbot
+spec:
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  selector:
+    project: tgpollbot
+
