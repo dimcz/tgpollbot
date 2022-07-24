@@ -15,7 +15,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-const SendTimeout = 5 * time.Second
+const SendTimeout = 1 * time.Second
 
 type TGService struct {
 	ctx context.Context
