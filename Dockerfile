@@ -7,8 +7,7 @@ RUN go mod download
 
 COPY . .
 
-RUN VERSION=`date -u +%Y-%m-%dT%H:%M:%SZ`
-RUN CGO_ENABLED=0 go build -a -o /tgpollbot -ldflags "-X main.VERSION=$VERSION"
+RUN CGO_ENABLED=0 go build -a -o /tgpollbot -ldflags "-X main.VERSION=`date -u +%Y-%m-%dT%H:%M:%SZ`"
 
 FROM alpine
 WORKDIR /
