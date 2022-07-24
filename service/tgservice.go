@@ -105,6 +105,9 @@ func (tg *TGService) send() error {
 			}
 		}
 
+		logrus.Infof("send %s poll from %s request to %d chat",
+			msg.Poll.ID, r.ID, chatId)
+
 		err = tg.cli.SAdd(storage.PollRequestsSet,
 			fmt.Sprintf("%s:%d:%s", r.ID, chatId, msg.Poll.ID))
 		if err != nil {
@@ -161,6 +164,10 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 			if err := tg.cli.SDelete(storage.PollRequestsSet, reqId+":*"); err != nil {
 				logrus.Error(err)
 			}
+
+			logrus.Infof("got answer to poll %s for request %s from %s/%d",
+				update.PollAnswer.PollID, reqId,
+				update.PollAnswer.User.UserName, update.PollAnswer.User.ID)
 		}
 	}
 }
