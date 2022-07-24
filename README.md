@@ -25,12 +25,11 @@ services:
     ports:
       - 8080:8080
     environment:
+      - REDIS_DB=redisdb://redis:6379/1
       - X_API_KEY=1234567890
       - USERS=123456789,225544522
       - TOKEN=XXXXXXXXXX:YYYYYYYYYYYYYYYYYYYYY
  ```
-_Примечание: в случае, если не указана переменная REDIS_DB, в качестве DB очереди используется собственная
-локальная база_
 
 ### HTTP API
 
@@ -66,7 +65,7 @@ _Пример:_ GET /v1/4c037184-280b-41d9-831c-4d739c4b780c
 _Варианты ответов:_
 ```json
 {
-  "status": "process"
+  "status": "processing"
 }
 ```
 Выдается, в случае если опрос создан, но еще не получен ответ на этот опрос пользователем Telegram
@@ -78,18 +77,21 @@ _Варианты ответов:_
 }
 ```
 
+В случае, если запрос не найден, сервис вернет сообщение request not found с кодом ответа 404
 ### Telegram
 
 ---
 
 Для работы с ботом, необходимо первоначально создать чат с ним:
 
-![начало работы с ботом](https://github.com/dimcz/tgpollbot/blob/main/docs/start.jpg)
-
-Если пользователь "не известен" боту, то в ответ будет послано сообщение приветствие с ID пользователя
+Если пользователь не имеет доступа к сервису, то в ответ будет послано сообщение с текстом, где указан ID пользователя
 
 ![UserID](https://github.com/dimcz/tgpollbot/blob/main/docs/userid.jpg)
 
+Иначе, пользователю будет сообщено, что он имеет доступ к сервису
+
+![NotAllowed](https://github.com/dimcz/tgpollbot/blob/main/docs/start.jpg)
+
 После регистрации нового опроса в системе пользователь телеграма получит 
 
-![новый опрос](https://github.com/dimcz/tgpollbot/blob/main/docs/poll.jpg)
+![NewPoll](https://github.com/dimcz/tgpollbot/blob/main/docs/poll.jpg)

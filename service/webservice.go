@@ -2,9 +2,7 @@ package service
 
 import (
 	"net/http"
-	"time"
 
-	"github.com/dimcz/tgpollbot/lib/e"
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -12,8 +10,10 @@ import (
 )
 
 type WebService struct {
-	storage storage.Storage
+	cli *storage.Client
 }
+
+type JSON map[string]string
 
 func (srv *WebService) Post(ctx echo.Context) error {
 	var task storage.Task
@@ -25,43 +25,41 @@ func (srv *WebService) Post(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, err)
 	}
 
-	requestID := uuid.New().String()
+	id := uuid.New().String()
 	r := storage.Record{
-		ID:        requestID,
-		Status:    storage.PROCESS,
-		UpdatedAt: time.Now().Unix(),
-		Task:      task,
+		ID:   id,
+		Task: task,
 	}
 
-	if err := srv.storage.Set(r); err != nil {
+	if err := srv.cli.Insert(r); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
-	return ctx.JSON(http.StatusCreated, map[string]string{"request_id": requestID})
+	err := srv.cli.Set(storage.RecordPrefix+id,
+		storage.Record{
+			Status: storage.RecordProcessing,
+			Option: nil,
+		})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err)
+	}
+
+	return ctx.JSON(http.StatusCreated, JSON{
+		"request_id": id,
+	})
 }
 
 func (srv *WebService) Get(ctx echo.Context) error {
-	id := ctx.Param("id")
-	r, err := srv.storage.Get(id)
+	id := ctx.Param("request_id")
 
-	if err != nil {
-		return e.HTTPError(err)
+	r := storage.Record{}
+	if err := srv.cli.Get(storage.RecordPrefix+id, &r); err == nil {
+		return ctx.JSON(http.StatusOK, r.DTO())
 	}
 
-	var code int
-
-	switch r.Status {
-	case storage.DONE:
-		code = http.StatusOK
-	case storage.PROCESS:
-		code = http.StatusCreated
-	default:
-		return e.HTTPError(e.NewInternal("unexpected status"))
-	}
-
-	return ctx.JSON(code, r.DTO())
+	return echo.NewHTTPError(http.StatusNotFound, "request not found")
 }
 
-func NewWebService(s storage.Storage) *WebService {
-	return &WebService{s}
+func NewWebService(cli *storage.Client) *WebService {
+	return &WebService{cli}
 }

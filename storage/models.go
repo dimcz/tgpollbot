@@ -1,8 +1,12 @@
 package storage
 
+import (
+	"encoding/json"
+)
+
 const (
-	PROCESS = "process"
-	DONE    = "done"
+	RecordProcessing = "processing"
+	RecordPollDone   = "done"
 )
 
 type Task struct {
@@ -10,27 +14,27 @@ type Task struct {
 	Buttons []string `json:"buttons" validate:"required"`
 }
 
-type Poll struct {
-	MessageID int    `json:"message_id" bson:"message_id"`
-	ChatID    int64  `json:"chat_id" bson:"chat_id"`
-	PollID    string `json:"poll_id" bson:"poll_id"`
+type Record struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	Option *int   `json:"option"`
+	Text   string `json:"text"`
+
+	Task Task `json:"task"`
 }
 
-type Record struct {
-	Status    string `json:"status" bson:"status"`
-	UpdatedAt int64  `json:"updated_at" bson:"updated_at"`
-	Option    int    `json:"option" bson:"option"`
-	Text      string `json:"text" bson:"text"`
+func (r Record) MarshalBinary() ([]byte, error) {
+	return json.Marshal(r)
+}
 
-	ID   string `json:"id" bson:"id"`
-	Task Task   `json:"task" bson:"task"`
-	Poll []Poll `json:"poll" bson:"poll"`
+func (r *Record) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, r)
 }
 
 type RecordDTO struct {
 	Status string `json:"status"`
-	Option int    `json:"option"`
-	Text   string `json:"text"`
+	Option *int   `json:"option,omitempty"`
+	Text   string `json:"text,omitempty"`
 }
 
 func (r *Record) DTO() RecordDTO {

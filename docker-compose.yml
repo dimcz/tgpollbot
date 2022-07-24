@@ -1,0 +1,14 @@
+version: "3"
+services:
+  redis:
+    image: redis
+
+  tgpollbot:
+    image: skydim/tgpollbot
+    ports:
+      - '8080:8080'
+    entrypoint:
+      - X_API_KEY=1234567890
+      - REDIS_DB=redisdb://redis:6379/0
+      - USERS=1111111
+      - TOKEN=XXXXXXXXX:YYYYYYYYYYYYYYYYYYYY

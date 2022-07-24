@@ -3,30 +3,33 @@ package service
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dimcz/tgpollbot/config"
 	"github.com/dimcz/tgpollbot/lib/e"
-	"github.com/dimcz/tgpollbot/lib/set"
 	"github.com/dimcz/tgpollbot/storage"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )
 
-const SendTimeout = 3 * time.Second
+const SendTimeout = 5 * time.Second
 
 type TGService struct {
 	ctx context.Context
-	db  storage.Storage
+	cli *storage.Client
 	bot *tgbotapi.BotAPI
 
 	allowList []int64
+}
 
-	liveChats *set.Set[int64]
+func (tg *TGService) Message(id int64, msg string) {
+	message := tgbotapi.NewMessage(id, msg)
+	if _, err := tg.bot.Send(message); err != nil {
+		logrus.Error(err)
+	}
 }
 
 func (tg *TGService) Close() {
@@ -64,11 +67,16 @@ func (tg *TGService) sendService() {
 }
 
 func (tg *TGService) send() error {
-	if tg.liveChats.Len() == 0 {
+	chats, err := tg.cli.GetChats()
+	if err != nil {
+		return err
+	}
+
+	if len(chats) == 0 {
 		return nil
 	}
 
-	r, err := tg.getReadyRecord()
+	r, err := tg.cli.Next()
 	if err != nil {
 		if err == e.ErrNotFound {
 			return nil
@@ -77,12 +85,12 @@ func (tg *TGService) send() error {
 		return err
 	}
 
-	for _, id := range tg.liveChats.Range() {
-		if chatPollExists(r.Poll, id) {
+	for _, chatId := range chats {
+		if tg.cli.Exists(fmt.Sprintf("%s%s:%d", storage.PollRequestPrefix, r.ID, chatId)) {
 			continue
 		}
 
-		poll := tgbotapi.NewPoll(id, r.Task.Message, r.Task.Buttons...)
+		poll := tgbotapi.NewPoll(chatId, r.Task.Message, r.Task.Buttons...)
 		poll.IsAnonymous = false
 		poll.AllowsMultipleAnswers = false
 
@@ -90,140 +98,73 @@ func (tg *TGService) send() error {
 		if err != nil {
 			logrus.Error(err)
 
-			tg.liveChats.UnSet(id)
+			if err := tg.cli.DropChat(chatId); err != nil {
+				logrus.Error(err)
+			}
 		}
 
-		r.Poll = append(r.Poll, storage.Poll{
-			MessageID: msg.MessageID,
-			ChatID:    id,
-			PollID:    msg.Poll.ID,
-		})
-	}
+		err = tg.cli.Set(fmt.Sprintf("%s%s:%d",
+			storage.PollRequestPrefix, r.ID, chatId), msg.Poll.ID)
+		if err != nil {
+			logrus.Error(err)
+		}
 
-	r.UpdatedAt = time.Now().Unix()
-	if err := tg.db.Set(r); err != nil {
-		return err
+		err = tg.cli.Set(storage.PollPrefix+msg.Poll.ID, r)
+		if err != nil {
+			logrus.Error(err)
+		}
 	}
 
 	return nil
-}
-
-func (tg *TGService) getReadyRecord() (r storage.Record, err error) {
-	records := make(map[string]storage.Record)
-	err = tg.db.Iterator(func(k string, r storage.Record) {
-		if r.Status == storage.PROCESS {
-			records[k] = r
-		}
-	})
-
-	if err != nil {
-		return r, err
-	}
-
-	if len(records) == 0 {
-		return r, e.ErrNotFound
-	}
-
-	keys := reflect.ValueOf(records).MapKeys()
-	r = records[keys[0].String()]
-
-	for _, v := range records {
-		if r.UpdatedAt > v.UpdatedAt {
-			r = v
-		}
-	}
-
-	return
 }
 
 func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 	for update := range ch {
 		switch {
 		case update.Message != nil:
-			if slices.Contains(tg.allowList, update.Message.From.ID) {
-				tg.liveChats.Set(update.Message.Chat.ID)
-				tg.helloAgain(update.Message.Chat.ID, update.Message.From.FirstName)
-			} else {
-				tg.helloNewUser(update.Message.Chat.ID, update.Message.From.FirstName, update.Message.From.ID)
+			switch {
+			case slices.Contains(tg.allowList, update.Message.From.ID):
+				err := tg.cli.AddChat(update.Message.Chat.ID)
+				if err != nil {
+					logrus.Error(err)
+				}
+				tg.Message(update.Message.Chat.ID, "You have access granted")
+			default:
+				tg.Message(update.Message.Chat.ID,
+					fmt.Sprintf("User %d does not have access", update.Message.From.ID))
 			}
+
 		case update.PollAnswer != nil:
-			r, err := tg.findByPollID(update.PollAnswer.PollID)
-			if err != nil {
+			r := storage.Record{}
+			if err := tg.cli.Get(storage.PollPrefix+update.PollAnswer.PollID, &r); err != nil {
 				logrus.Error(err)
 
 				continue
 			}
 
-			r.Status = storage.DONE
-			r.Option = update.PollAnswer.OptionIDs[0]
-			r.Text = r.Task.Buttons[r.Option]
-
-			if err := tg.db.Set(r); err != nil {
+			if err := tg.cli.Drop(r); err != nil {
 				logrus.Error(err)
 			}
 
-			go tg.stopPolls(r.Poll)
-		}
-	}
-}
+			r.Status = storage.RecordPollDone
+			r.Option = &update.PollAnswer.OptionIDs[0]
+			r.Text = r.Task.Buttons[*r.Option]
 
-func (tg *TGService) stopPolls(poll []storage.Poll) {
-	for _, v := range poll {
-		p := tgbotapi.NewStopPoll(v.ChatID, v.MessageID)
-
-		_, err := tg.bot.Send(p)
-		if err != nil {
-			logrus.Error(err)
-		}
-	}
-}
-
-func (tg *TGService) findByPollID(id string) (record storage.Record, err error) {
-	ok := false
-	err = tg.db.Iterator(func(_ string, r storage.Record) {
-		for _, p := range r.Poll {
-			if p.PollID == id {
-				record = r
-				ok = true
-
-				return
+			if err := tg.cli.Set(storage.RecordPrefix+r.ID, r); err != nil {
+				logrus.Error(err)
 			}
 		}
-	})
-
-	if err != nil {
-		return record, err
-	}
-
-	if !ok {
-		return record, e.ErrNotFound
-	}
-
-	return record, nil
-}
-
-func (tg *TGService) helloAgain(id int64, n string) {
-	message := tgbotapi.NewMessage(id, fmt.Sprintf("Hello, %s!", n))
-	if _, err := tg.bot.Send(message); err != nil {
-		logrus.Error(err)
 	}
 }
 
-func (tg *TGService) helloNewUser(id int64, n string, userId int64) {
-	message := tgbotapi.NewMessage(id, fmt.Sprintf("Hello, %s! Your UserID: %d", n, userId))
-	if _, err := tg.bot.Send(message); err != nil {
-		logrus.Error(err)
-	}
-}
-
-func NewTGService(ctx context.Context, db storage.Storage) (*TGService, error) {
+func NewTGService(ctx context.Context, cli *storage.Client) (*TGService, error) {
 	bot, err := tgbotapi.NewBotAPI(config.Config.Token)
 	if err != nil {
 		return nil, err
 	}
 
 	u := strings.Split(config.Config.Users, ",")
-	var allowList []int64
+	allowList := make([]int64, 0, len(u))
 	for _, v := range u {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil {
@@ -235,19 +176,8 @@ func NewTGService(ctx context.Context, db storage.Storage) (*TGService, error) {
 
 	return &TGService{
 		ctx:       ctx,
-		db:        db,
+		cli:       cli,
 		bot:       bot,
-		liveChats: set.Int64Set(),
 		allowList: allowList,
 	}, nil
-}
-
-func chatPollExists(p []storage.Poll, id int64) bool {
-	for _, i := range p {
-		if i.ChatID == id {
-			return true
-		}
-	}
-
-	return false
 }

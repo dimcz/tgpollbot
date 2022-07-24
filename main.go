@@ -12,43 +12,31 @@ import (
 	"github.com/dimcz/tgpollbot/lib/validator"
 	"github.com/dimcz/tgpollbot/service"
 	"github.com/dimcz/tgpollbot/storage"
-	"github.com/dimcz/tgpollbot/storage/badger"
-	"github.com/dimcz/tgpollbot/storage/mongo"
-	"github.com/dimcz/tgpollbot/storage/redis"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
 )
 
+const PREFIX = "1.0.0-"
+
 var VERSION string
 
 func main() {
-	logrus.Info("Start TGPollBoot ", VERSION)
+	logrus.Info("Start TGPollBoot ", PREFIX, VERSION)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var (
-		db  storage.Storage
-		err error
-	)
-
-	switch {
-	case len(config.Config.RedisDB) > 0:
-		db, err = redis.Connect(ctx, config.Config.RedisDB)
-	case len(config.Config.MongoDB) > 0:
-		db, err = mongo.Connect(ctx, config.Config.MongoDB)
-	default:
-		db, err = badger.Create()
-	}
-
+	cli, err := storage.Connect(ctx, config.Config.RedisDB)
 	if err != nil {
 		logrus.Fatal(err)
+
+		return
 	}
 
-	defer db.Close()
+	defer cli.Close()
 
-	tg, err := service.NewTGService(ctx, db)
+	tg, err := service.NewTGService(ctx, cli)
 	if err != nil {
 		logrus.Error(err)
 
@@ -58,7 +46,7 @@ func main() {
 
 	tg.Run()
 
-	srv := service.NewWebService(db)
+	srv := service.NewWebService(cli)
 
 	if err := run(srv); err != nil {
 		logrus.Error(err)
@@ -79,7 +67,7 @@ func run(srv *service.WebService) error {
 		},
 	}))
 
-	e.GET("/v1/:id", srv.Get)
+	e.GET("/v1/:request_id", srv.Get)
 	e.POST("/v1/", srv.Post)
 
 	conn := fmt.Sprintf(":%d", config.Config.Port)
