@@ -197,5 +197,9 @@ func Connect(ctx context.Context, conn string) (*Client, error) {
 		return nil, err
 	}
 
-	return &Client{ctx: ctx, db: client}, nil
+	return &Client{
+		ctx: ctx,
+		db:  client,
+		len: client.LLen(ctx, RecordsList).Val(),
+	}, nil
 }
