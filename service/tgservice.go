@@ -96,9 +96,9 @@ func (tg *TGService) send() error {
 	}
 
 	for _, chatId := range sessions {
-		k, _ := db.SSearch(tg.ctx, tg.rc, storage.PollRequestsSet,
-			fmt.Sprintf("%s:%d:*", r.ID, chatId))
-		if len(k) > 0 {
+		if _, err := db.SSearch(tg.ctx, tg.rc, storage.PollRequestsSet,
+			fmt.Sprintf("%s:%d:*", r.ID, chatId)); err == nil {
+
 			continue
 		}
 
