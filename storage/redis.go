@@ -30,7 +30,7 @@ type Client struct {
 	mu    sync.Mutex
 }
 
-// Records
+// List
 
 func (cli *Client) RPush(list string, r Request) error {
 	defer cli.mu.Unlock()
@@ -92,6 +92,8 @@ func (cli *Client) LRem(list string, member interface{}) error {
 	return nil
 }
 
+// Set
+
 func (cli *Client) SRem(set string, members ...interface{}) error {
 	return cli.db.SRem(cli.ctx, set, members...).Err()
 }
@@ -114,9 +116,11 @@ func (cli *Client) Sessions() (result []int64, err error) {
 
 func (cli *Client) SSearch(set, pattern string) (result []string, err error) {
 	var cursor uint64 = 0
+
 	for {
 		var keys []string
 		keys, cursor, err = cli.db.SScan(cli.ctx, set, cursor, pattern, 0).Result()
+
 		if err != nil {
 			return result, err
 		}
@@ -149,6 +153,8 @@ func (cli *Client) SAdd(set string, member interface{}) error {
 	return cli.db.SAdd(cli.ctx, set, member).Err()
 }
 
+// Keys
+
 func (cli *Client) Set(key string, val interface{}) error {
 	return cli.db.Set(cli.ctx, key, val, RecordTTL*time.Second).Err()
 }
@@ -156,6 +162,8 @@ func (cli *Client) Set(key string, val interface{}) error {
 func (cli *Client) Get(key string, val interface{}) error {
 	return cli.db.Get(cli.ctx, key).Scan(val)
 }
+
+// --
 
 func (cli *Client) Close() {
 	if err := cli.db.Close(); err != nil {

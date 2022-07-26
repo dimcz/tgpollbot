@@ -13,8 +13,6 @@ type WebService struct {
 	cli *storage.Client
 }
 
-type JSON map[string]string
-
 func (srv *WebService) Post(ctx echo.Context) error {
 	var task storage.Task
 	if err := ctx.Bind(&task); err != nil {
@@ -22,7 +20,7 @@ func (srv *WebService) Post(ctx echo.Context) error {
 	}
 
 	if err := ctx.Validate(&task); err != nil {
-		return echo.NewHTTPError(http.StatusUnprocessableEntity, err)
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, errors.Wrap(err, "could not validate user data"))
 	}
 
 	id := uuid.New().String()
@@ -32,7 +30,7 @@ func (srv *WebService) Post(ctx echo.Context) error {
 	}
 
 	if err := srv.cli.RPush(storage.RecordsList, r); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return echo.NewHTTPError(http.StatusInternalServerError, errors.Wrap(err, "failed to push new request"))
 	}
 
 	err := srv.cli.Set(storage.RecordPrefix+id,
@@ -41,10 +39,10 @@ func (srv *WebService) Post(ctx echo.Context) error {
 			Option: nil,
 		})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return echo.NewHTTPError(http.StatusInternalServerError, errors.Wrap(err, "failed to set new request"))
 	}
 
-	return ctx.JSON(http.StatusCreated, JSON{
+	return ctx.JSON(http.StatusCreated, map[string]string{
 		"request_id": id,
 	})
 }
