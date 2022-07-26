@@ -150,7 +150,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 				Option: &update.PollAnswer.OptionIDs[0],
 			}
 
-			if err := tg.cli.Set(tg.ctx, storage.RecordPrefix+reqId, dto); err != nil {
+			if err := tg.cli.Set(tg.ctx, storage.RecordPrefix+reqId, dto, storage.RecordTTL*time.Second); err != nil {
 				logrus.Error("failed to set record with error: ", err)
 			}
 

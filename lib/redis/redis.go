@@ -132,8 +132,8 @@ func (cli *Client) SAdd(ctx context.Context, set string, member interface{}) err
 
 // Keys
 
-func (cli *Client) Set(ctx context.Context, key string, val interface{}) error {
-	return cli.db.Set(ctx, key, val, storage.RecordTTL*time.Second).Err()
+func (cli *Client) Set(ctx context.Context, key string, val interface{}, ttl time.Duration) error {
+	return cli.db.Set(ctx, key, val, ttl).Err()
 }
 
 func (cli *Client) Get(ctx context.Context, key string, val interface{}) error {
