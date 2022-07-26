@@ -49,7 +49,7 @@ func (tg *TGService) sendService() {
 			return
 		case <-timer.C:
 			if err := tg.send(); err != nil {
-				if !strings.Contains(err.Error(), "not_found") {
+				if !errors.Is(err, e.ErrNotFound) {
 					logrus.Error("failed to send service with error: ", err)
 				}
 			}
@@ -126,6 +126,8 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 			text, err := tg.deleteRequest(reqId, update.PollAnswer.OptionIDs[0])
 			if err != nil {
 				logrus.Error("failed to delete request with error: ", err)
+
+				return
 			}
 
 			dto := storage.DTO{
