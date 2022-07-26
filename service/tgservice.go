@@ -144,8 +144,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 				continue
 			}
 
-			array := strings.Split(keys[0], ":")
-			reqId := array[0]
+			reqId := strings.Split(keys[0], ":")[0]
 
 			text, err := tg.findAndDeleteRequest(reqId, update.PollAnswer.OptionIDs[0])
 			if err != nil {
