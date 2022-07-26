@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dimcz/tgpollbot/config"
 	"github.com/dimcz/tgpollbot/lib/e"
+	"github.com/dimcz/tgpollbot/lib/redis"
 	"github.com/dimcz/tgpollbot/storage"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
@@ -19,18 +21,26 @@ import (
 const SendTimeout = 1 * time.Second
 
 type TGService struct {
-	ctx context.Context
-	cli *storage.Client
+	cli *redis.Client
 	bot *tgbotapi.BotAPI
 
 	allowList []int64
+
+	ctx    context.Context
+	cancel func()
+	group  sync.WaitGroup
 }
 
 func (tg *TGService) Close() {
 	tg.bot.StopReceivingUpdates()
+
+	tg.cancel()
+	tg.group.Wait()
 }
 
 func (tg *TGService) Run() {
+	tg.group.Add(2)
+
 	ch := tg.bot.GetUpdatesChan(tgbotapi.UpdateConfig{})
 	go tg.updateService(ch)
 
@@ -38,6 +48,8 @@ func (tg *TGService) Run() {
 }
 
 func (tg *TGService) sendService() {
+	defer tg.group.Done()
+
 	next := time.Now().Add(SendTimeout)
 
 	timer := time.NewTimer(time.Until(next))
@@ -61,18 +73,18 @@ func (tg *TGService) sendService() {
 }
 
 func (tg *TGService) send() error {
-	sessions, err := tg.cli.Sessions()
-	if err != nil {
+	var sessions []int64
+	if err := tg.cli.SMembers(tg.ctx, storage.SessionSet, &sessions); err != nil {
 		return errors.Wrap(err, "failed to get sessions")
 	}
 
-	r, err := tg.cli.Next()
-	if err != nil {
+	var r storage.Request
+	if err := tg.cli.Next(tg.ctx, storage.RecordsList, &r); err != nil {
 		return errors.Wrap(err, "failed to get next request")
 	}
 
 	for _, chatId := range sessions {
-		k, _ := tg.cli.SSearch(storage.PollRequestsSet,
+		k, _ := tg.cli.SSearch(tg.ctx, storage.PollRequestsSet,
 			fmt.Sprintf("%s:%d:*", r.ID, chatId))
 		if len(k) > 0 {
 			continue
@@ -86,7 +98,7 @@ func (tg *TGService) send() error {
 		if err != nil {
 			logrus.Error("failed send new poll with err: ", err)
 
-			if err := tg.cli.SRem(storage.SessionSet, chatId); err != nil {
+			if err := tg.cli.SRem(tg.ctx, storage.SessionSet, chatId); err != nil {
 				logrus.Error("failed removing error session with err: ", err)
 			}
 		}
@@ -94,7 +106,7 @@ func (tg *TGService) send() error {
 		logrus.Infof("send %s poll from %s request to %d chat",
 			msg.Poll.ID, r.ID, chatId)
 
-		err = tg.cli.SAdd(storage.PollRequestsSet,
+		err = tg.cli.SAdd(tg.ctx, storage.PollRequestsSet,
 			fmt.Sprintf("%s:%d:%s", r.ID, chatId, msg.Poll.ID))
 		if err != nil {
 			logrus.Error("failed adding poll request with err: ", err)
@@ -105,13 +117,15 @@ func (tg *TGService) send() error {
 }
 
 func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
+	defer tg.group.Done()
+
 	for update := range ch {
 		switch {
 		case update.Message != nil:
 			message := tg.greetingUser(update.Message)
 			tg.message(update.Message.Chat.ID, message)
 		case update.PollAnswer != nil:
-			keys, err := tg.cli.SSearch(storage.PollRequestsSet, "*:*:"+update.PollAnswer.PollID)
+			keys, err := tg.cli.SSearch(tg.ctx, storage.PollRequestsSet, "*:*:"+update.PollAnswer.PollID)
 			if err != nil {
 				if err != e.ErrNotFound {
 					logrus.Error("failed to search poll request with error: ", err)
@@ -136,7 +150,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 				Option: &update.PollAnswer.OptionIDs[0],
 			}
 
-			if err := tg.cli.Set(storage.RecordPrefix+reqId, dto); err != nil {
+			if err := tg.cli.Set(tg.ctx, storage.RecordPrefix+reqId, dto); err != nil {
 				logrus.Error("failed to set record with error: ", err)
 			}
 
@@ -150,17 +164,17 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 func (tg *TGService) deleteRequest(reqId string, index int) (text string, err error) {
 	var requests []storage.Request
 
-	if err := tg.cli.SDelete(storage.PollRequestsSet, reqId+":*"); err != nil {
+	if err := tg.cli.SDelete(tg.ctx, storage.PollRequestsSet, reqId+":*"); err != nil {
 		logrus.Error("failed to deleting poll request with error: ", err)
 	}
 
-	if err = tg.cli.LRange(storage.RecordsList, &requests); err != nil {
+	if err = tg.cli.LRange(tg.ctx, storage.RecordsList, &requests); err != nil {
 		return
 	}
 
 	for _, v := range requests {
 		if v.ID == reqId {
-			return v.Buttons[index], tg.cli.LRem(storage.RecordsList, v)
+			return v.Buttons[index], tg.cli.LRem(tg.ctx, storage.RecordsList, v)
 		}
 	}
 
@@ -169,7 +183,7 @@ func (tg *TGService) deleteRequest(reqId string, index int) (text string, err er
 
 func (tg *TGService) greetingUser(message *tgbotapi.Message) string {
 	if slices.Contains(tg.allowList, message.From.ID) {
-		err := tg.cli.SAdd(storage.SessionSet, message.Chat.ID)
+		err := tg.cli.SAdd(tg.ctx, storage.SessionSet, message.Chat.ID)
 		if err == nil {
 			return "You have access granted"
 		}
@@ -187,7 +201,7 @@ func (tg *TGService) message(id int64, msg string) {
 	}
 }
 
-func NewTGService(ctx context.Context, cli *storage.Client) (*TGService, error) {
+func NewTGService(cli *redis.Client) (*TGService, error) {
 	bot, err := tgbotapi.NewBotAPI(config.Config.Token)
 	if err != nil {
 		return nil, err
@@ -205,8 +219,12 @@ func NewTGService(ctx context.Context, cli *storage.Client) (*TGService, error) 
 		allowList = append(allowList, id)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &TGService{
-		ctx:       ctx,
+		ctx:    ctx,
+		cancel: cancel,
+
 		cli:       cli,
 		bot:       bot,
 		allowList: allowList,

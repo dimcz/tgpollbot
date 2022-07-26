@@ -4,6 +4,15 @@ import (
 	"encoding/json"
 )
 
+const RecordTTL = 7 * 24 * 60 * 60
+
+const (
+	PollRequestsSet = "pollRequestsSet"
+	RecordsList     = "requestsList"
+	RecordPrefix    = "record:"
+	SessionSet      = "sessionSet"
+)
+
 const (
 	RecordProcessing = "processing"
 	RecordPollDone   = "done"
