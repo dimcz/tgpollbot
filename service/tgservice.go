@@ -202,9 +202,13 @@ func (tg *TGService) message(id int64, msg string) {
 }
 
 func NewTGService(cli *redis.Client) (*TGService, error) {
+	if err := cli.InitQueue(context.Background(), storage.RecordsList); err != nil {
+		return nil, errors.Wrap(err, "could not init queue")
+	}
+
 	bot, err := tgbotapi.NewBotAPI(config.Config.Token)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not init Telegram Bot API")
 	}
 
 	u := strings.Split(config.Config.Users, ",")

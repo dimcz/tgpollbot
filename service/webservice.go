@@ -2,6 +2,7 @@ package service
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/dimcz/tgpollbot/lib/redis"
 	"github.com/dimcz/tgpollbot/storage"
@@ -38,7 +39,7 @@ func (srv *WebService) Post(ctx echo.Context) error {
 		storage.DTO{
 			Status: storage.RecordProcessing,
 			Option: nil,
-		})
+		}, storage.RecordTTL*time.Second)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, errors.Wrap(err, "failed to set new request"))
 	}

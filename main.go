@@ -27,8 +27,6 @@ func main() {
 	cli, err := redis.Connect(config.Config.RedisDB)
 	if err != nil {
 		logrus.Fatal("could not connect to storage with error: ", err)
-
-		return
 	}
 
 	defer cli.Close()

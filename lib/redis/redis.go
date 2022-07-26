@@ -148,6 +148,12 @@ func (cli *Client) Close() {
 	}
 }
 
+func (cli *Client) InitQueue(ctx context.Context, list string) (err error) {
+	cli.len, err = cli.db.LLen(ctx, list).Result()
+
+	return err
+}
+
 func Connect(conn string) (*Client, error) {
 	u, err := url.Parse(conn)
 	if err != nil {
@@ -183,7 +189,6 @@ func Connect(conn string) (*Client, error) {
 	}
 
 	return &Client{
-		db:  client,
-		len: client.LLen(ctx, storage.RecordsList).Val(),
+		db: client,
 	}, nil
 }
