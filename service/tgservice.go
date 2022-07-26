@@ -26,13 +26,6 @@ type TGService struct {
 	allowList []int64
 }
 
-func (tg *TGService) Message(id int64, msg string) {
-	message := tgbotapi.NewMessage(id, msg)
-	if _, err := tg.bot.Send(message); err != nil {
-		logrus.Error("could not send message to Telegram with error: ", err)
-	}
-}
-
 func (tg *TGService) Close() {
 	tg.bot.StopReceivingUpdates()
 }
@@ -116,7 +109,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 		switch {
 		case update.Message != nil:
 			message := tg.greetingUser(update.Message)
-			tg.Message(update.Message.Chat.ID, message)
+			tg.message(update.Message.Chat.ID, message)
 		case update.PollAnswer != nil:
 			keys, err := tg.cli.SSearch(storage.PollRequestsSet, "*:*:"+update.PollAnswer.PollID)
 			if err != nil {
@@ -155,6 +148,10 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 func (tg *TGService) deleteRequest(reqId string, index int) (text string, err error) {
 	var requests []storage.Request
 
+	if err := tg.cli.SDelete(storage.PollRequestsSet, reqId+":*"); err != nil {
+		logrus.Error("failed to deleting poll request with error: ", err)
+	}
+
 	if err = tg.cli.LRange(storage.RecordsList, &requests); err != nil {
 		return
 	}
@@ -165,24 +162,27 @@ func (tg *TGService) deleteRequest(reqId string, index int) (text string, err er
 		}
 	}
 
-	if err := tg.cli.SDelete(storage.PollRequestsSet, reqId+":*"); err != nil {
-		logrus.Error("failed to deleting poll request with error: ", err)
-	}
-
 	return text, e.ErrNotFound
 }
 
 func (tg *TGService) greetingUser(message *tgbotapi.Message) string {
 	if slices.Contains(tg.allowList, message.From.ID) {
 		err := tg.cli.SAdd(storage.SessionSet, message.Chat.ID)
-		if err != nil {
-			logrus.Error("could not set user session with error: ", err)
+		if err == nil {
+			return "You have access granted"
 		}
 
-		return "You have access granted"
+		logrus.Error("could not set user session with error: ", err)
 	}
 
 	return fmt.Sprintf("User %d does not have access", message.From.ID)
+}
+
+func (tg *TGService) message(id int64, msg string) {
+	message := tgbotapi.NewMessage(id, msg)
+	if _, err := tg.bot.Send(message); err != nil {
+		logrus.Error("could not send message to Telegram with error: ", err)
+	}
 }
 
 func NewTGService(ctx context.Context, cli *storage.Client) (*TGService, error) {
