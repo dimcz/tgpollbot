@@ -9,29 +9,35 @@ import (
 	"time"
 
 	"github.com/dimcz/tgpollbot/config"
-	"github.com/dimcz/tgpollbot/lib/redis"
+	"github.com/dimcz/tgpollbot/lib/db"
 	"github.com/dimcz/tgpollbot/lib/validator"
 	"github.com/dimcz/tgpollbot/service"
+	"github.com/go-redis/redis/v8"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
 )
 
-const PREFIX = "1.0.1-"
+const PREFIX = "1.0.2-"
 
 var VERSION string
 
 func main() {
 	logrus.Info("Start TGPollBoot ", PREFIX, VERSION)
 
-	cli, err := redis.Connect(config.Config.RedisDB)
+	rc, err := db.RedisConnect(config.Config.RedisDB)
 	if err != nil {
 		logrus.Fatal("could not connect to storage with error: ", err)
 	}
 
-	defer cli.Close()
+	defer func(rc *redis.Client) {
+		err = rc.Close()
+		if err != nil {
+			logrus.Error("failed to close db connection with error: ", err)
+		}
+	}(rc)
 
-	tg, err := service.NewTGService(cli)
+	tg, err := service.NewTGService(rc)
 	if err != nil {
 		logrus.Error("could not start TGService with error: ", err)
 
@@ -41,11 +47,13 @@ func main() {
 
 	tg.Run()
 
-	srv := service.NewWebService(cli)
+	srv := service.NewWebService(rc)
 
 	if err := run(srv); err != nil {
 		logrus.Error("failed to run web web service with error: ", err)
 	}
+
+	logrus.Info("service normally shutdown")
 }
 
 func run(srv *service.WebService) error {
