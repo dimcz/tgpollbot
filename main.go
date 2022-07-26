@@ -29,7 +29,7 @@ func main() {
 
 	cli, err := storage.Connect(ctx, config.Config.RedisDB)
 	if err != nil {
-		logrus.Fatal(err)
+		logrus.Fatal("could not connect to storage with error: ", err)
 
 		return
 	}
@@ -38,7 +38,7 @@ func main() {
 
 	tg, err := service.NewTGService(ctx, cli)
 	if err != nil {
-		logrus.Error(err)
+		logrus.Error("could not start TGService with error: ", err)
 
 		return
 	}
@@ -49,7 +49,7 @@ func main() {
 	srv := service.NewWebService(cli)
 
 	if err := run(srv); err != nil {
-		logrus.Error(err)
+		logrus.Error("failed to run web web service with error: ", err)
 	}
 }
 
