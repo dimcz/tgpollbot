@@ -189,7 +189,7 @@ func (tg *TGService) findAndDeleteRequest(reqId string, index int) (text string,
 		}
 	}
 
-	return
+	return "", fmt.Errorf("could not find request with id %s", reqId)
 }
 
 func (tg *TGService) greetingUser(message *tgbotapi.Message) string {
