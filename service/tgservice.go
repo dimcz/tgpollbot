@@ -137,7 +137,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 			array := strings.Split(keys[0], ":")
 			reqId := array[0]
 
-			text, err := tg.deleteRequest(reqId, update.PollAnswer.OptionIDs[0])
+			text, err := tg.findAndDeleteRequest(reqId, update.PollAnswer.OptionIDs[0])
 			if err != nil {
 				logrus.Error("failed to delete request with error: ", err)
 
@@ -161,7 +161,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 	}
 }
 
-func (tg *TGService) deleteRequest(reqId string, index int) (text string, err error) {
+func (tg *TGService) findAndDeleteRequest(reqId string, index int) (text string, err error) {
 	var requests []storage.Request
 
 	if err := tg.cli.SDelete(tg.ctx, storage.PollRequestsSet, reqId+":*"); err != nil {
