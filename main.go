@@ -9,34 +9,29 @@ import (
 	"time"
 
 	"github.com/dimcz/tgpollbot/config"
+	"github.com/dimcz/tgpollbot/lib/redis"
 	"github.com/dimcz/tgpollbot/lib/validator"
 	"github.com/dimcz/tgpollbot/service"
-	"github.com/dimcz/tgpollbot/storage"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
 )
 
-const PREFIX = "1.0.0-"
+const PREFIX = "1.0.1-"
 
 var VERSION string
 
 func main() {
 	logrus.Info("Start TGPollBoot ", PREFIX, VERSION)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	cli, err := storage.Connect(ctx, config.Config.RedisDB)
+	cli, err := redis.Connect(config.Config.RedisDB)
 	if err != nil {
 		logrus.Fatal("could not connect to storage with error: ", err)
-
-		return
 	}
 
 	defer cli.Close()
 
-	tg, err := service.NewTGService(ctx, cli)
+	tg, err := service.NewTGService(cli)
 	if err != nil {
 		logrus.Error("could not start TGService with error: ", err)
 

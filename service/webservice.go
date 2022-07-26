@@ -2,7 +2,9 @@ package service
 
 import (
 	"net/http"
+	"time"
 
+	"github.com/dimcz/tgpollbot/lib/redis"
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -10,7 +12,7 @@ import (
 )
 
 type WebService struct {
-	cli *storage.Client
+	cli *redis.Client
 }
 
 func (srv *WebService) Post(ctx echo.Context) error {
@@ -29,15 +31,15 @@ func (srv *WebService) Post(ctx echo.Context) error {
 		Task: task,
 	}
 
-	if err := srv.cli.RPush(storage.RecordsList, r); err != nil {
+	if err := srv.cli.RPush(ctx.Request().Context(), storage.RecordsList, r); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, errors.Wrap(err, "failed to push new request"))
 	}
 
-	err := srv.cli.Set(storage.RecordPrefix+id,
+	err := srv.cli.Set(ctx.Request().Context(), storage.RecordPrefix+id,
 		storage.DTO{
 			Status: storage.RecordProcessing,
 			Option: nil,
-		})
+		}, storage.RecordTTL*time.Second)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, errors.Wrap(err, "failed to set new request"))
 	}
@@ -51,13 +53,13 @@ func (srv *WebService) Get(ctx echo.Context) error {
 	id := ctx.Param("request_id")
 
 	dto := storage.DTO{}
-	if err := srv.cli.Get(storage.RecordPrefix+id, &dto); err == nil {
+	if err := srv.cli.Get(ctx.Request().Context(), storage.RecordPrefix+id, &dto); err == nil {
 		return ctx.JSON(http.StatusOK, dto)
 	}
 
 	return echo.NewHTTPError(http.StatusNotFound, "request not found")
 }
 
-func NewWebService(cli *storage.Client) *WebService {
+func NewWebService(cli *redis.Client) *WebService {
 	return &WebService{cli}
 }
