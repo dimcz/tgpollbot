@@ -23,6 +23,10 @@ const PREFIX = "0.0.3-"
 var VERSION string
 
 func main() {
+	if len(VERSION) == 0 {
+		VERSION = time.Now().Format(time.RFC3339)
+	}
+
 	logrus.Info("Start TGPollBoot ", PREFIX, VERSION)
 
 	rc, err := db.RedisConnect(config.Config.RedisDB)
