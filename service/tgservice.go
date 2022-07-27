@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/dimcz/tgpollbot/config"
-	"github.com/dimcz/tgpollbot/lib/db"
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/go-redis/redis/v8"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -90,9 +89,7 @@ func (tg *TGService) send() error {
 	}
 
 	for _, chatId := range sessions {
-		if _, err := db.SSearch(tg.ctx, tg.rc, storage.PollRequestsSet,
-			fmt.Sprintf("%s:%d:*", r.ID, chatId)); err == nil {
-
+		if _, err := tg.searchKeys(storage.PollRequestsSet, fmt.Sprintf("%s:%d:*", r.ID, chatId)); err == nil {
 			continue
 		}
 
@@ -122,6 +119,20 @@ func (tg *TGService) send() error {
 	return nil
 }
 
+func (tg *TGService) remByPattern(set, pattern string) error {
+	keys, err := tg.searchKeys(set, pattern)
+	if err != nil {
+		return err
+	}
+
+	members := make([]interface{}, 0, len(keys))
+	for _, v := range keys {
+		members = append(members, v)
+	}
+
+	return tg.rc.SRem(tg.ctx, set, members...).Err()
+}
+
 func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 	defer tg.group.Done()
 
@@ -131,7 +142,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 			message := tg.greetingUser(update.Message)
 			tg.message(update.Message.Chat.ID, message)
 		case update.PollAnswer != nil:
-			keys, err := db.SSearch(tg.ctx, tg.rc, storage.PollRequestsSet, "*:*:"+update.PollAnswer.PollID)
+			keys, err := tg.searchKeys(storage.PollRequestsSet, "*:*:"+update.PollAnswer.PollID)
 			if err != nil {
 				logrus.Error("failed to search poll request with error: ", err)
 
@@ -166,7 +177,7 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 }
 
 func (tg *TGService) findAndDeleteRequest(reqId string, index int) (text string, err error) {
-	if err := db.SPRem(tg.ctx, tg.rc, storage.PollRequestsSet, reqId+":*"); err != nil {
+	if err := tg.remByPattern(storage.PollRequestsSet, reqId+":*"); err != nil {
 		logrus.Error("failed to deleting poll request with error: ", err)
 	}
 
@@ -204,6 +215,31 @@ func (tg *TGService) message(id int64, msg string) {
 	if _, err := tg.bot.Send(message); err != nil {
 		logrus.Error("could not send message to Telegram with error: ", err)
 	}
+}
+
+func (tg *TGService) searchKeys(set, pattern string) (result []string, err error) {
+	var cursor uint64 = 0
+
+	for {
+		var keys []string
+		keys, cursor, err = tg.rc.SScan(tg.ctx, set, cursor, pattern, 0).Result()
+
+		if err != nil {
+			return result, err
+		}
+
+		result = append(result, keys...)
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	if len(result) == 0 {
+		return result, redis.Nil
+	}
+
+	return
 }
 
 func NewTGService(rc *redis.Client) (*TGService, error) {
