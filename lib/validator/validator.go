@@ -7,8 +7,8 @@ import (
 	validator "github.com/go-playground/validator/v10"
 )
 
-//goland:noinspection GoSnakeCaseUsage
 const MAX_OPTION_LENGTH = 100
+const MAX_TITLE_LENGTH = 300
 
 type Validator struct {
 	validator *validator.Validate

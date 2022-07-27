@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/dimcz/tgpollbot/config"
+	"github.com/dimcz/tgpollbot/lib/utils"
+	"github.com/dimcz/tgpollbot/lib/validator"
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/go-redis/redis/v8"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -95,7 +97,17 @@ func (tg *TGService) send() error {
 			continue
 		}
 
-		poll := tgbotapi.NewPoll(chatId, r.Task.Message, r.Task.Buttons...)
+		head, tail := utils.Split(r.Task.Message, validator.MAX_TITLE_LENGTH)
+		if len(head) > 0 {
+			msg := tgbotapi.NewMessage(chatId, "*"+head+"*")
+			msg.ParseMode = "markdown"
+
+			if _, err := tg.bot.Send(msg); err != nil {
+				return errors.Wrap(err, "failed send new head message")
+			}
+		}
+
+		poll := tgbotapi.NewPoll(chatId, tail, r.Task.Buttons...)
 		poll.IsAnonymous = false
 		poll.AllowsMultipleAnswers = false
 
