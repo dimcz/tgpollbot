@@ -18,13 +18,7 @@ func (c *Cache) InitRequest(ctx context.Context, key string, r storage.Request) 
 		return err
 	}
 
-	if err := c.rc.Set(ctx, storage.RecordPrefix+key, r, storage.RecordTTL).Err(); err != nil {
-		return err
-	}
-
-	c.cache.Set(key, r, ttlcache.DefaultTTL)
-
-	return nil
+	return c.Set(ctx, key, r)
 }
 
 func (c *Cache) Set(ctx context.Context, key string, r storage.Request) error {

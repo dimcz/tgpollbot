@@ -6,11 +6,11 @@ require (
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
-	github.com/google/uuid v1.3.0
 	github.com/ilyakaznacheev/cleanenv v1.3.0
 	github.com/jellydator/ttlcache/v3 v3.0.0
 	github.com/labstack/echo/v4 v4.7.2
 	github.com/pkg/errors v0.9.1
+	github.com/rs/xid v1.4.0
 	github.com/sirupsen/logrus v1.9.0
 	golang.org/x/exp v0.0.0-20220713135740-79cabaa25d75
 )

@@ -101,11 +101,7 @@ func (tg *TGService) send() error {
 
 		msg, err := tg.bot.Send(poll)
 		if err != nil {
-			logrus.Error("failed send new poll with err: ", err)
-
-			if err := tg.rc.SRem(tg.ctx, storage.SessionSet, chatId).Err(); err != nil {
-				logrus.Error("failed removing error session with err: ", err)
-			}
+			return errors.Wrap(err, "failed send new poll")
 		}
 
 		logrus.Infof("send %s poll from %s request to %d chat",
@@ -114,7 +110,7 @@ func (tg *TGService) send() error {
 		err = tg.rc.SAdd(tg.ctx, storage.PollRequestsSet,
 			fmt.Sprintf("%s:%d:%s", requestID, chatId, msg.Poll.ID)).Err()
 		if err != nil {
-			logrus.Error("failed adding poll request with err: ", err)
+			return errors.Wrap(err, "failed adding poll request with err:")
 		}
 	}
 
