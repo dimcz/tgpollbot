@@ -18,7 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const PREFIX = "1.0.2-"
+const PREFIX = "0.0.3-"
 
 var VERSION string
 
@@ -37,7 +37,10 @@ func main() {
 		}
 	}(rc)
 
-	tg, err := service.NewTGService(rc)
+	cache := service.NewCache(rc)
+	defer cache.Close()
+
+	tg, err := service.NewTGService(rc, cache)
 	if err != nil {
 		logrus.Error("could not start TGService with error: ", err)
 
@@ -47,7 +50,7 @@ func main() {
 
 	tg.Run()
 
-	srv := service.NewWebService(rc)
+	srv := service.NewWebService(cache)
 
 	if err := run(srv); err != nil {
 		logrus.Error("failed to run web web service with error: ", err)

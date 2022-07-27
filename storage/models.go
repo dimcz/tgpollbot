@@ -2,9 +2,10 @@ package storage
 
 import (
 	"encoding/json"
+	"time"
 )
 
-const RecordTTL = 7 * 24 * 60 * 60
+const RecordTTL = 7 * 24 * 60 * 60 * time.Second
 
 const (
 	PollRequestsSet = "pollRequestsSet"
@@ -24,8 +25,9 @@ type Task struct {
 }
 
 type Request struct {
-	ID   string `json:"id"`
-	Task `json:"task"`
+	Status string `json:"status"`
+	Option *int   `json:"option"`
+	Task   `json:"task"`
 }
 
 func (r Request) MarshalBinary() ([]byte, error) {
@@ -42,10 +44,15 @@ type DTO struct {
 	Text   string `json:"text,omitempty"`
 }
 
-func (d DTO) MarshalBinary() ([]byte, error) {
-	return json.Marshal(d)
-}
+func (r *Request) DTO() DTO {
+	d := DTO{
+		Status: r.Status,
+		Option: r.Option,
+	}
 
-func (d *DTO) UnmarshalBinary(data []byte) error {
-	return json.Unmarshal(data, d)
+	if r.Option != nil {
+		d.Text = r.Buttons[*r.Option]
+	}
+
+	return d
 }

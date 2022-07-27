@@ -25,6 +25,7 @@ type TGService struct {
 	group  sync.WaitGroup
 
 	rc        *redis.Client
+	cache     *Cache
 	bot       *tgbotapi.BotAPI
 	allowList []int64
 }
@@ -72,14 +73,14 @@ func (tg *TGService) send() error {
 		return nil
 	}
 
-	var r storage.Request
-	err := tg.rc.LMove(
+	requestID := tg.rc.LMove(
 		tg.ctx,
 		storage.RecordsList,
 		storage.RecordsList,
 		"LEFT",
-		"RIGHT").Scan(&r)
+		"RIGHT").Val()
 
+	r, err := tg.cache.Get(tg.ctx, requestID)
 	if err != nil {
 		if err == redis.Nil {
 			return nil
@@ -89,7 +90,8 @@ func (tg *TGService) send() error {
 	}
 
 	for _, chatId := range sessions {
-		if _, err := tg.searchKeys(storage.PollRequestsSet, fmt.Sprintf("%s:%d:*", r.ID, chatId)); err == nil {
+		_, err = tg.searchKeys(storage.PollRequestsSet, fmt.Sprintf("%s:%d:*", requestID, chatId))
+		if err == nil {
 			continue
 		}
 
@@ -107,10 +109,10 @@ func (tg *TGService) send() error {
 		}
 
 		logrus.Infof("send %s poll from %s request to %d chat",
-			msg.Poll.ID, r.ID, chatId)
+			msg.Poll.ID, requestID, chatId)
 
 		err = tg.rc.SAdd(tg.ctx, storage.PollRequestsSet,
-			fmt.Sprintf("%s:%d:%s", r.ID, chatId, msg.Poll.ID)).Err()
+			fmt.Sprintf("%s:%d:%s", requestID, chatId, msg.Poll.ID)).Err()
 		if err != nil {
 			logrus.Error("failed adding poll request with err: ", err)
 		}
@@ -149,52 +151,45 @@ func (tg *TGService) updateService(ch tgbotapi.UpdatesChannel) {
 				continue
 			}
 
-			reqId := strings.Split(keys[0], ":")[0]
+			requestId := strings.Split(keys[0], ":")[0]
 
-			text, err := tg.findAndDeleteRequest(reqId, update.PollAnswer.OptionIDs[0])
+			r, err := tg.cache.Get(tg.ctx, requestId)
 			if err != nil {
+				logrus.Error("failed to get request from cache with error: ", err)
+
+				continue
+			}
+
+			r.Status = storage.RecordPollDone
+			r.Option = &update.PollAnswer.OptionIDs[0]
+
+			if err = tg.cache.Set(tg.ctx, requestId, r); err != nil {
+				logrus.Error("could not set record to cache with error: ", err)
+
+				continue
+			}
+
+			if err := tg.removeRequest(requestId); err != nil {
 				logrus.Error("failed to delete request with error: ", err)
-
-				return
-			}
-
-			dto := storage.DTO{
-				Status: storage.RecordPollDone,
-				Text:   text,
-				Option: &update.PollAnswer.OptionIDs[0],
-			}
-
-			err = tg.rc.Set(tg.ctx, storage.RecordPrefix+reqId, dto, storage.RecordTTL*time.Second).Err()
-			if err != nil {
-				logrus.Error("failed to set record with error: ", err)
 			}
 
 			logrus.Infof("got answer to poll %s for request %s from %s/%d",
-				update.PollAnswer.PollID, reqId,
+				update.PollAnswer.PollID, requestId,
 				update.PollAnswer.User.UserName, update.PollAnswer.User.ID)
 		}
 	}
 }
 
-func (tg *TGService) findAndDeleteRequest(reqId string, index int) (text string, err error) {
-	if err := tg.remByPattern(storage.PollRequestsSet, reqId+":*"); err != nil {
+func (tg *TGService) removeRequest(requestId string) error {
+	if err := tg.remByPattern(storage.PollRequestsSet, requestId+":*"); err != nil {
 		logrus.Error("failed to deleting poll request with error: ", err)
 	}
 
-	var requests []storage.Request
-
-	err = tg.rc.LRange(tg.ctx, storage.RecordsList, 0, -1).ScanSlice(&requests)
-	if err != nil {
-		return
+	if err := tg.rc.LRem(tg.ctx, storage.RecordsList, 1, requestId).Err(); err != nil {
+		logrus.Error("failed to deleting request with error: ", err)
 	}
 
-	for _, v := range requests {
-		if v.ID == reqId {
-			return v.Buttons[index], tg.rc.LRem(tg.ctx, storage.RecordsList, 1, v).Err()
-		}
-	}
-
-	return "", fmt.Errorf("could not find request with id %s", reqId)
+	return nil
 }
 
 func (tg *TGService) greetingUser(message *tgbotapi.Message) string {
@@ -242,7 +237,7 @@ func (tg *TGService) searchKeys(set, pattern string) (result []string, err error
 	return
 }
 
-func NewTGService(rc *redis.Client) (*TGService, error) {
+func NewTGService(rc *redis.Client, cache *Cache) (*TGService, error) {
 	bot, err := tgbotapi.NewBotAPI(config.Config.Token)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not init Telegram Bot API")
@@ -267,6 +262,7 @@ func NewTGService(rc *redis.Client) (*TGService, error) {
 		cancel: cancel,
 
 		rc:        rc,
+		cache:     cache,
 		bot:       bot,
 		allowList: allowList,
 	}, nil
