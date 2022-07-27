@@ -18,7 +18,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-const SendTimeout = 500 * time.Millisecond
+const PauseBetweenPolls = 500 * time.Millisecond
 
 type TGService struct {
 	ctx    context.Context
@@ -49,22 +49,16 @@ func (tg *TGService) Run() {
 func (tg *TGService) sendService() {
 	defer tg.group.Done()
 
-	next := time.Now().Add(SendTimeout)
-
-	timer := time.NewTimer(time.Until(next))
-	defer timer.Stop()
-
 	for {
 		select {
 		case <-tg.ctx.Done():
 			return
-		case <-timer.C:
+		default:
 			if err := tg.send(); err != nil {
 				logrus.Error("failed to send service with error: ", err)
 			}
 
-			next = time.Now().Add(SendTimeout)
-			timer.Reset(time.Until(next))
+			time.Sleep(PauseBetweenPolls)
 		}
 	}
 }
