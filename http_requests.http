@@ -38,7 +38,7 @@ Content-Type: application/json
 X-Api-Key: 1234567890
 
 {
-  "message": "Poll 3",
+  "message": "Poll 2",
   "buttons": [
     "option 1",
     "option 2",
@@ -53,7 +53,7 @@ X-Api-Key: 1234567890
 %}
 
 ###
-GET http://localhost:8080/v1/e8ef027e-e0e7-4b2c-b6c9-d5db88f0e19a
+GET http://localhost:8080/v1/e2b62b4c-2a47-43ae-b191-c29bd8406781
 Accept: application/json
 X-Api-Key: 1234567890
 

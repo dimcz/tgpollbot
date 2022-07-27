@@ -2,17 +2,17 @@ package service
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 type WebService struct {
-	rc *redis.Client
+	cache *Cache
 }
 
 func (srv *WebService) Post(ctx echo.Context) error {
@@ -27,20 +27,13 @@ func (srv *WebService) Post(ctx echo.Context) error {
 
 	id := uuid.New().String()
 	r := storage.Request{
-		ID:   id,
-		Task: task,
+		Status: storage.RecordProcessing,
+		Task:   task,
 	}
 
-	if err := srv.rc.RPush(ctx.Request().Context(), storage.RecordsList, r).Err(); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, errors.Wrap(err, "failed to push new request"))
-	}
+	if err := srv.cache.InitRequest(ctx.Request().Context(), id, r); err != nil {
+		logrus.Error("could not set record to cache with error: ", err)
 
-	err := srv.rc.Set(ctx.Request().Context(), storage.RecordPrefix+id,
-		storage.DTO{
-			Status: storage.RecordProcessing,
-			Option: nil,
-		}, storage.RecordTTL*time.Second).Err()
-	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, errors.Wrap(err, "failed to set new request"))
 	}
 
@@ -52,14 +45,20 @@ func (srv *WebService) Post(ctx echo.Context) error {
 func (srv *WebService) Get(ctx echo.Context) error {
 	id := ctx.Param("request_id")
 
-	dto := storage.DTO{}
-	if err := srv.rc.Get(ctx.Request().Context(), storage.RecordPrefix+id).Scan(&dto); err == nil {
-		return ctx.JSON(http.StatusOK, dto)
+	r, err := srv.cache.Get(ctx.Request().Context(), id)
+	if err != nil {
+		if err == redis.Nil {
+			return echo.NewHTTPError(http.StatusNotFound, "request not found")
+		}
+
+		logrus.Error("failed to get request from cache with error: ", err)
+
+		return echo.NewHTTPError(http.StatusInternalServerError, errors.Wrap(err, "failed to get request"))
 	}
 
-	return echo.NewHTTPError(http.StatusNotFound, "request not found")
+	return ctx.JSON(http.StatusOK, r.DTO())
 }
 
-func NewWebService(rc *redis.Client) *WebService {
-	return &WebService{rc}
+func NewWebService(cache *Cache) *WebService {
+	return &WebService{cache}
 }
