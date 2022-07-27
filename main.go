@@ -18,7 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const PREFIX = "0.0.3-"
+const PREFIX = "0.0.4-"
 
 var VERSION string
 
