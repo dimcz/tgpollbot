@@ -38,12 +38,12 @@ func (tg *TGService) Close() {
 }
 
 func (tg *TGService) Run() {
-	tg.group.Add(2)
-
-	ch := tg.bot.GetUpdatesChan(tgbotapi.UpdateConfig{})
-	go tg.updateService(ch)
-
-	go tg.sendService()
+	//	tg.group.Add(2)
+	//
+	//	ch := tg.bot.GetUpdatesChan(tgbotapi.UpdateConfig{})
+	//	go tg.updateService(ch)
+	//
+	//	go tg.sendService()
 }
 
 func (tg *TGService) sendService() {

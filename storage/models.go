@@ -20,8 +20,8 @@ const (
 )
 
 type Task struct {
-	Message string   `json:"message" validate:"required"`
-	Buttons []string `json:"buttons" validate:"required"`
+	Message string   `json:"message" validate:"required,max=4000"`
+	Buttons []string `json:"buttons" validate:"required,checkOption"`
 }
 
 type Request struct {
@@ -56,3 +56,8 @@ func (r *Request) DTO() DTO {
 
 	return d
 }
+
+/*
+Poll #75909
+-----------------------------------------
+*/

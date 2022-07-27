@@ -1,13 +1,13 @@
 package service
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,11 +18,11 @@ type WebService struct {
 func (srv *WebService) Post(ctx echo.Context) error {
 	var task storage.Task
 	if err := ctx.Bind(&task); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, errors.Wrap(err, "could not decode user data"))
+		return echo.NewHTTPError(http.StatusBadRequest, errorWrap(err, "could not decode user data"))
 	}
 
 	if err := ctx.Validate(&task); err != nil {
-		return echo.NewHTTPError(http.StatusUnprocessableEntity, errors.Wrap(err, "could not validate user data"))
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, errorWrap(err, "could not validate user data"))
 	}
 
 	id := uuid.New().String()
@@ -34,7 +34,7 @@ func (srv *WebService) Post(ctx echo.Context) error {
 	if err := srv.cache.InitRequest(ctx.Request().Context(), id, r); err != nil {
 		logrus.Error("could not set record to cache with error: ", err)
 
-		return echo.NewHTTPError(http.StatusInternalServerError, errors.Wrap(err, "failed to set new request"))
+		return echo.NewHTTPError(http.StatusInternalServerError, errorWrap(err, "failed to set new request"))
 	}
 
 	return ctx.JSON(http.StatusCreated, map[string]string{
@@ -48,12 +48,13 @@ func (srv *WebService) Get(ctx echo.Context) error {
 	r, err := srv.cache.Get(ctx.Request().Context(), id)
 	if err != nil {
 		if err == redis.Nil {
-			return echo.NewHTTPError(http.StatusNotFound, "request not found")
+			return echo.NewHTTPError(http.StatusNotFound,
+				errorWrap(fmt.Errorf("could not found request with id %s", id), "request not found"))
 		}
 
 		logrus.Error("failed to get request from cache with error: ", err)
 
-		return echo.NewHTTPError(http.StatusInternalServerError, errors.Wrap(err, "failed to get request"))
+		return echo.NewHTTPError(http.StatusInternalServerError, errorWrap(err, "failed to get request"))
 	}
 
 	return ctx.JSON(http.StatusOK, r.DTO())
@@ -61,4 +62,11 @@ func (srv *WebService) Get(ctx echo.Context) error {
 
 func NewWebService(cache *Cache) *WebService {
 	return &WebService{cache}
+}
+
+func errorWrap(err error, message string) map[string]string {
+	return map[string]string{
+		"error":   message,
+		"details": err.Error(),
+	}
 }
