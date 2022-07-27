@@ -6,8 +6,8 @@ import (
 
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/go-redis/redis/v8"
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/rs/xid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -25,7 +25,7 @@ func (srv *WebService) Post(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, errorWrap(err, "could not validate user data"))
 	}
 
-	id := uuid.New().String()
+	id := xid.New().String()
 	r := storage.Request{
 		Status: storage.RecordProcessing,
 		Task:   task,
