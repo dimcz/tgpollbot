@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/dimcz/tgpollbot/config"
-	"github.com/dimcz/tgpollbot/lib/utils"
 	"github.com/dimcz/tgpollbot/lib/validator"
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/go-redis/redis/v8"
@@ -19,7 +18,10 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-const PauseBetweenPolls = 500 * time.Millisecond
+const (
+	MaxPauseBetweenPolls = 1000
+	MinPauseBetweenPolls = 50
+)
 
 type TGService struct {
 	ctx    context.Context
@@ -60,7 +62,17 @@ func (tg *TGService) sendService() {
 				logrus.Error("failed to send service with error: ", err)
 			}
 
-			time.Sleep(PauseBetweenPolls)
+			l := tg.cache.Len()
+			if l == 0 {
+				l = 1
+			}
+
+			pause := MaxPauseBetweenPolls / l
+			if pause < MinPauseBetweenPolls {
+				pause = MinPauseBetweenPolls
+			}
+
+			time.Sleep(time.Duration(pause) * time.Millisecond)
 		}
 	}
 }
@@ -97,17 +109,17 @@ func (tg *TGService) send() error {
 			continue
 		}
 
-		head, tail := utils.Split(r.Task.Message, validator.MAX_TITLE_LENGTH)
-		if len(head) > 0 {
-			msg := tgbotapi.NewMessage(chatId, "*"+head+"*")
-			msg.ParseMode = "markdown"
-
+		title := r.Task.Message
+		if len(title) > validator.MAX_TITLE_LENGTH {
+			msg := tgbotapi.NewMessage(chatId, title)
 			if _, err := tg.bot.Send(msg); err != nil {
 				return errors.Wrap(err, "failed send new head message")
 			}
+
+			title = "choose an option"
 		}
 
-		poll := tgbotapi.NewPoll(chatId, tail, r.Task.Buttons...)
+		poll := tgbotapi.NewPoll(chatId, title, r.Task.Buttons...)
 		poll.IsAnonymous = false
 		poll.AllowsMultipleAnswers = false
 
