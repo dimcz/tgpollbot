@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/dimcz/tgpollbot/storage"
 	"github.com/go-redis/redis/v8"
 	"github.com/jellydator/ttlcache/v3"
 )
+
+const DEFAULT_TTL = 10 * 60 * time.Second
 
 type Cache struct {
 	rc    *redis.Client
@@ -45,14 +48,17 @@ func (c *Cache) Get(ctx context.Context, key string) (r storage.Request, err err
 	return
 }
 
+func (c *Cache) Len() int {
+	return c.cache.Len()
+}
+
 func (c *Cache) Close() {
 	c.cache.Stop()
 }
 
 func NewCache(rc *redis.Client) *Cache {
 	cache := ttlcache.New(
-		ttlcache.WithTTL[string, storage.Request](storage.RecordTTL),
-		ttlcache.WithDisableTouchOnHit[string, storage.Request](),
+		ttlcache.WithTTL[string, storage.Request](DEFAULT_TTL),
 	)
 
 	go cache.Start()
