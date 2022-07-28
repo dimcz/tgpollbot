@@ -20,7 +20,7 @@ const (
 )
 
 type Task struct {
-	Message string   `json:"message" validate:"required,max=4000"`
+	Message string   `json:"message" validate:"required,max=4096"`
 	Buttons []string `json:"buttons" validate:"required,checkOption"`
 }
 
