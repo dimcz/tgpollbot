@@ -53,26 +53,43 @@ func (tg *TGService) Run() {
 func (tg *TGService) sendService() {
 	defer tg.group.Done()
 
+	waitDur := func() time.Duration {
+		l := tg.cache.Len()
+		if l == 0 {
+			l = 1
+		}
+
+		pause := MaxPauseBetweenPolls / l
+		if pause < MinPauseBetweenPolls {
+			pause = MinPauseBetweenPolls
+		}
+
+		return time.Duration(pause) * time.Millisecond
+	}
+
+	timer := time.NewTimer(waitDur())
+	stop := func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}
+
+	defer stop()
+
 	for {
 		select {
 		case <-tg.ctx.Done():
 			return
-		default:
+		case <-timer.C:
 			if err := tg.send(); err != nil {
 				logrus.Error("failed to send service with error: ", err)
 			}
 
-			l := tg.cache.Len()
-			if l == 0 {
-				l = 1
-			}
-
-			pause := MaxPauseBetweenPolls / l
-			if pause < MinPauseBetweenPolls {
-				pause = MinPauseBetweenPolls
-			}
-
-			time.Sleep(time.Duration(pause) * time.Millisecond)
+			stop()
+			timer.Reset(waitDur())
 		}
 	}
 }
