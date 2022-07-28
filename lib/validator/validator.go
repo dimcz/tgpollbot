@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	validator "github.com/go-playground/validator/v10"
+	"github.com/go-playground/validator/v10"
 )
 
 const MAX_OPTION_LENGTH = 100
@@ -17,6 +17,10 @@ type Validator struct {
 func NewValidator() *Validator {
 	v := validator.New()
 	_ = v.RegisterValidation("checkOption", func(fl validator.FieldLevel) bool {
+		if fl.Field().Len() == 0 {
+			return false
+		}
+
 		for i := 0; i < fl.Field().Len(); i++ {
 			v := fl.Field().Index(i).String()
 			if len(v) > MAX_OPTION_LENGTH {
